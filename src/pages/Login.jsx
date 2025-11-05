@@ -113,21 +113,29 @@ export default function Login() {
   }, []);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      await login(correo, contrasena);
-      const user = await me();
-      const rol = (user?.rol || "").toLowerCase();
-      if (rol === "admin") navigate("/dashboard", { replace: true });
-      else if (rol === "reciclador") navigate("/solicitudes", { replace: true });
-      else navigate("/perfil", { replace: true });
-    } catch (err) {
-      alert("Credenciales inválidas");
-    } finally {
-      setLoading(false);
+  e.preventDefault();
+  setLoading(true);
+  try {
+    await login(correo, contrasena);
+    const user = await me();
+    const rol = (user?.rol || "").toLowerCase();
+    
+    // Redirecciones según el rol
+    if (rol === "admin") {
+      navigate("/dashboard", { replace: true });
+    } else if (rol === "reciclador") {
+      navigate("/reciclador", { replace: true }); // ← Cambio aquí
+    } else if (rol === "ciudadano") {
+      navigate("/solicitar-recoleccion", { replace: true }); // ← Cambio aquí
+    } else {
+      navigate("/perfil", { replace: true });
     }
-  };
+  } catch (err) {
+    alert("Credenciales inválidas");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleRegister = async (e) => {
     e.preventDefault();
