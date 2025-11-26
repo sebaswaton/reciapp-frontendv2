@@ -65,15 +65,19 @@ export default function Login() {
         --chat--message--bot--background: rgba(255, 255, 255, 0.95);
         --chat--message--bot--color: #065f46;
         --chat--message--bot--border: 1px solid rgba(16, 185, 129, 0.2);
-        --chat--message--user--background: linear-gradient(135deg, #10b981 0%, #14b8a6 100%);
-        --chat--message--user--color: var(--chat--color-white);
-        --chat--message--user--border: none;
+        --chat--message--user--background: #d1fae5; /* Verde claro */
+        --chat--message--user--color: #064e3b;      /* Verde oscuro */
+        --chat--message--user--border: 1px solid #10b981;
         --chat--message--pre--background: rgba(16, 185, 129, 0.1);
         --chat--toggle--background: linear-gradient(135deg, #10b981 0%, #14b8a6 100%);
         --chat--toggle--hover--background: linear-gradient(135deg, #059669 0%, #0d9488 100%);
         --chat--toggle--active--background: linear-gradient(135deg, #047857 0%, #0f766e 100%);
         --chat--toggle--color: var(--chat--color-white);
         --chat--toggle--size: 64px;
+        --chat--input--background: #ffffff;
+        --chat--input--color: #065f46;
+        --chat--input--border-color: rgba(16, 185, 129, 0.3);
+      
       }
       
       /* Estilos adicionales para mejorar la apariencia */
@@ -99,7 +103,7 @@ export default function Login() {
     script.textContent = `
       import { createChat } from 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js';
       createChat({
-        webhookUrl: 'https://conjetura.app.n8n.cloud/webhook/bece7444-9c83-4341-9a94-dc0df4e6662d/chat'
+        webhookUrl: 'https://n8n.rubro.pe/webhook/c749da76-4750-4f74-b84d-6249c0122e5b/chat'
       });
     `;
     document.body.appendChild(script);
@@ -126,7 +130,7 @@ export default function Login() {
     } else if (rol === "reciclador") {
       navigate("/reciclador", { replace: true }); // ← Cambio aquí
     } else if (rol === "ciudadano") {
-      navigate("/solicitar-recoleccion", { replace: true }); // ← Cambio aquí
+      navigate("/ciudadano", { replace: true }); // ← Redirige al dashboard
     } else {
       navigate("/perfil", { replace: true });
     }

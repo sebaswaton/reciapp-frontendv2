@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import io from 'socket.io-client';
@@ -34,6 +35,7 @@ const recyclerIcon = new L.Icon({
 });
 
 export default function SolicitarRecoleccion() {
+  const navigate = useNavigate();
   const [userId, setUserId] = useState(null);
   const [ubicacion, setUbicacion] = useState(null);
   const [recicladorUbicacion, setRecicladorUbicacion] = useState(null);
@@ -293,12 +295,31 @@ export default function SolicitarRecoleccion() {
                     : 'El reciclador está llegando a tu ubicación'}
                 </p>
                 {recicladorUbicacion && (
-                  <div className="bg-green-50 rounded-lg p-3">
+                  <div className="bg-green-50 rounded-lg p-3 mb-4">
                     <p className="text-sm text-green-700">
                       📍 Ubicación del reciclador actualizada
                     </p>
                   </div>
                 )}
+                <button
+                  onClick={() => navigate('/ciudadano')}
+                  className="w-full mt-4 bg-gray-100 text-gray-700 font-semibold py-3 rounded-lg hover:bg-gray-200 transition-all flex items-center justify-center gap-2"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                    />
+                  </svg>
+                  Volver al Dashboard
+                </button>
               </div>
             </div>
           )}

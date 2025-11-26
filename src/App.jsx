@@ -7,6 +7,7 @@ import Perfil from "./pages/Perfil";
 import Navbar from "./components/Navbar";
 import SolicitarRecoleccion from "./components/SolicitarRecoleccion";
 import RecicladorDashboard from "./components/RecicladorDashboard";
+import CiudadanoDashboard from "./components/CiudadanoDashboard";
 import { me } from "./api/auth";
 
 function PrivateRoute({ children, allowedRoles = [] }) {
@@ -89,6 +90,15 @@ export default function App() {
         />
 
         {/* Rutas para CIUDADANOS */}
+        <Route
+          path="/ciudadano"
+          element={
+            <PrivateRoute allowedRoles={["ciudadano"]}>
+              <CiudadanoDashboard />
+            </PrivateRoute>
+          }
+        />
+
         <Route
           path="/solicitar-recoleccion"
           element={

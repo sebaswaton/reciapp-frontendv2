@@ -54,9 +54,14 @@ export default function Navbar() {
               )}
               
               {user?.rol === "ciudadano" && (
-                <Link to="/solicitar-recoleccion" className="hover:text-green-200 transition-colors">
-                  Solicitar Recolección
-                </Link>
+                <>
+                  <Link to="/ciudadano" className="hover:text-green-200 transition-colors">
+                    Dashboard
+                  </Link>
+                  <Link to="/solicitar-recoleccion" className="hover:text-green-200 transition-colors">
+                    Solicitar Recolección
+                  </Link>
+                </>
               )}
               
               <Link to="/perfil" className="hover:text-green-200 transition-colors">
