@@ -8,6 +8,9 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  // URL de la API desde variable de entorno
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
   // Estados del registro
   const [showRegister, setShowRegister] = useState(false);
   const [registerData, setRegisterData] = useState({
@@ -65,8 +68,8 @@ export default function Login() {
         --chat--message--bot--background: rgba(255, 255, 255, 0.95);
         --chat--message--bot--color: #065f46;
         --chat--message--bot--border: 1px solid rgba(16, 185, 129, 0.2);
-        --chat--message--user--background: #d1fae5; /* Verde claro */
-        --chat--message--user--color: #064e3b;      /* Verde oscuro */
+        --chat--message--user--background: #d1fae5;
+        --chat--message--user--color: #064e3b;
         --chat--message--user--border: 1px solid #10b981;
         --chat--message--pre--background: rgba(16, 185, 129, 0.1);
         --chat--toggle--background: linear-gradient(135deg, #10b981 0%, #14b8a6 100%);
@@ -80,7 +83,6 @@ export default function Login() {
       
       }
       
-      /* Estilos adicionales para mejorar la apariencia */
       .chat-window {
         box-shadow: 0 20px 25px -5px rgba(16, 185, 129, 0.1), 0 10px 10px -5px rgba(16, 185, 129, 0.04);
         backdrop-filter: blur(10px);
@@ -117,29 +119,29 @@ export default function Login() {
   }, []);
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  try {
-    await login(correo, contrasena);
-    const user = await me();
-    const rol = (user?.rol || "").toLowerCase();
-    
-    // Redirecciones según el rol
-    if (rol === "admin") {
-      navigate("/dashboard", { replace: true });
-    } else if (rol === "reciclador") {
-      navigate("/reciclador", { replace: true }); // ← Cambio aquí
-    } else if (rol === "ciudadano") {
-      navigate("/ciudadano", { replace: true }); // ← Redirige al dashboard
-    } else {
-      navigate("/perfil", { replace: true });
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await login(correo, contrasena);
+      const user = await me();
+      const rol = (user?.rol || "").toLowerCase();
+      
+      // Redirecciones según el rol
+      if (rol === "admin") {
+        navigate("/dashboard", { replace: true });
+      } else if (rol === "reciclador") {
+        navigate("/reciclador", { replace: true });
+      } else if (rol === "ciudadano") {
+        navigate("/ciudadano", { replace: true });
+      } else {
+        navigate("/perfil", { replace: true });
+      }
+    } catch (err) {
+      alert("Credenciales inválidas");
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    alert("Credenciales inválidas");
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -157,7 +159,8 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/auth/register', {
+      // ✅ CAMBIO AQUÍ: Usa API_URL en lugar de localhost
+      const response = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
