@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { me } from '../api/auth';
 import Navbar from './Navbar';
@@ -8,21 +8,29 @@ export default function CiudadanoDashboard() {
   const [user, setUser] = useState(null);
   const [solicitudes, setSolicitudes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const socketRef = useRef(null);
+
+  // Función para cargar solicitudes (extraída para reutilizar)
+  const loadSolicitudes = async (userId) => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/solicitudes`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSolicitudes(data.filter((s) => s.ciudadano_id === userId));
+      }
+    } catch (error) {
+      console.error('Error cargando solicitudes:', error);
+    }
+  };
 
   useEffect(() => {
     const loadUserData = async () => {
       try {
         const userData = await me();
         setUser(userData);
-
-        // Cargar solicitudes del ciudadano GAAAAAAA :v
-        const response = await fetch('http://localhost:8000/api/solicitudes', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setSolicitudes(data.filter((s) => s.ciudadano_id === userData.id));
-        }
+        await loadSolicitudes(userData.id);
       } catch (error) {
         console.error('Error cargando datos:', error);
       } finally {
@@ -31,6 +39,84 @@ export default function CiudadanoDashboard() {
     };
     loadUserData();
   }, []);
+
+  // 🔹 NUEVO: Recargar solicitudes cuando la página vuelve a ser visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && user) {
+        loadSolicitudes(user.id);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user]);
+
+  // 🔹 NUEVO: WebSocket NATIVO para actualizaciones en tiempo real
+  useEffect(() => {
+    if (!user) return;
+
+    // Convertir URL HTTP a WebSocket (ws:// o wss://)
+    const wsUrl = import.meta.env.VITE_API_URL
+      .replace('https://', 'wss://')
+      .replace('http://', 'ws://');
+    
+    const ws = new WebSocket(`${wsUrl}/realtime/ws/${user.id}`);
+    socketRef.current = ws;
+
+    ws.onopen = () => {
+      console.log('Dashboard WebSocket conectado ✅');
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('Mensaje recibido:', data);
+
+        // Escuchar cuando se crea una nueva solicitud
+        if (data.type === 'solicitud_creada') {
+          console.log('Nueva solicitud creada:', data);
+          loadSolicitudes(user.id);
+        }
+
+        // Escuchar cuando se actualiza el estado de una solicitud
+        if (data.type === 'solicitud_actualizada') {
+          console.log('Solicitud actualizada:', data);
+          loadSolicitudes(user.id);
+        }
+
+        // Escuchar cuando una solicitud es aceptada
+        if (data.type === 'solicitud_aceptada') {
+          console.log('Solicitud aceptada:', data);
+          loadSolicitudes(user.id);
+        }
+
+        // Escuchar cuando una solicitud es completada
+        if (data.type === 'solicitud_completada') {
+          console.log('Solicitud completada:', data);
+          loadSolicitudes(user.id);
+        }
+      } catch (error) {
+        console.error('Error procesando mensaje WebSocket:', error);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('Error WebSocket:', error);
+    };
+
+    ws.onclose = () => {
+      console.log('Dashboard WebSocket desconectado ❌');
+    };
+
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
+  }, [user]);
 
   if (loading) {
     return (

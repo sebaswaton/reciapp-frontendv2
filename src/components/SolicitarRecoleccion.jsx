@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
-import io from 'socket.io-client';
+// Removido socket.io-client, ahora usamos WebSocket nativo
 import { me } from '../api/auth';
 
 // Fix iconos Leaflet
@@ -79,34 +79,53 @@ export default function SolicitarRecoleccion() {
     }
   }, []);
 
-  // 🔹 Conectar WebSocket solo cuando tengamos userId
+  // 🔹 Conectar WebSocket NATIVO solo cuando tengamos userId
   useEffect(() => {
     if (!userId) return;
 
-    socketRef.current = io(`${import.meta.env.VITE_API_URL}/realtime`, {
-      path: `/ws/${userId}`,
-      transports: ['websocket'],
-    });
+    // Convertir URL HTTP a WebSocket
+    const wsUrl = import.meta.env.VITE_API_URL
+      .replace('https://', 'wss://')
+      .replace('http://', 'ws://');
+    
+    const ws = new WebSocket(`${wsUrl}/realtime/ws/${userId}`);
+    socketRef.current = ws;
 
-    socketRef.current.on('connect', () => console.log('WebSocket conectado ✅'));
-    socketRef.current.on('solicitud_aceptada', (data) => {
-      setSolicitudActiva((prev) => ({
-        ...prev,
-        estado: 'aceptada',
-        reciclador_id: data.reciclador_id,
-      }));
-      alert('¡Un reciclador aceptó tu solicitud! Está en camino 🚗');
-    });
+    ws.onopen = () => console.log('WebSocket conectado ✅');
+    
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('Mensaje recibido:', data);
 
-    socketRef.current.on('ubicacion_reciclador', (data) => {
-      setRecicladorUbicacion({ lat: data.lat, lng: data.lng });
-    });
+        if (data.type === 'solicitud_aceptada') {
+          console.log('Solicitud aceptada:', data);
+          setSolicitudActiva((prev) => ({
+            ...prev,
+            estado: 'aceptada',
+            reciclador_id: data.reciclador_id,
+          }));
+          alert('¡Un reciclador aceptó tu solicitud! Está en camino 🚗');
+        }
 
-    socketRef.current.on('disconnect', () =>
-      console.log('WebSocket desconectado ❌')
-    );
+        if (data.type === 'ubicacion_reciclador') {
+          console.log('Ubicación reciclador:', data);
+          setRecicladorUbicacion({ lat: data.lat, lng: data.lng });
+        }
+      } catch (error) {
+        console.error('Error procesando mensaje:', error);
+      }
+    };
 
-    return () => socketRef.current?.disconnect();
+    ws.onerror = (error) => console.error('Error WebSocket:', error);
+    
+    ws.onclose = () => console.log('WebSocket desconectado ❌');
+
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
   }, [userId]);
 
   // 🔹 Crear solicitud
@@ -134,10 +153,21 @@ export default function SolicitarRecoleccion() {
       const solicitud = await response.json();
       setSolicitudActiva(solicitud);
 
-      socketRef.current.emit('nueva_solicitud', {
-        type: 'nueva_solicitud',
-        solicitud,
-      });
+      // 🔹 Emitir eventos usando WebSocket nativo (JSON.stringify)
+      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        // Emitir evento de nueva solicitud a recicladores
+        socketRef.current.send(JSON.stringify({
+          type: 'nueva_solicitud',
+          solicitud,
+        }));
+
+        // Emitir evento para actualizar el dashboard del ciudadano
+        socketRef.current.send(JSON.stringify({
+          type: 'solicitud_creada',
+          solicitud,
+          ciudadano_id: userId,
+        }));
+      }
 
       alert('¡Solicitud creada! Buscando recicladores cercanos...');
     } catch (err) {
