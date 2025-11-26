@@ -16,7 +16,7 @@ export default function CiudadanoDashboard() {
         setUser(userData);
 
         // Cargar solicitudes del ciudadano GAAAAAAA :v
-        const response = await fetch('http://localhost:8000/api/solicitudes', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/solicitudes`, {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         });
         if (response.ok) {

@@ -87,7 +87,8 @@ export default function RecicladorDashboard() {
   useEffect(() => {
     if (!userId) return;
 
-    const ws = new WebSocket(`ws://localhost:8000/realtime/ws/${userId}`);
+    const wsUrl = import.meta.env.VITE_API_URL.replace('https://', 'wss://').replace('http://', 'ws://');
+    const ws = new WebSocket(`${wsUrl}/realtime/ws/${userId}`);
     socketRef.current = ws;
 
     ws.onopen = () => console.log('WebSocket conectado ✅');
@@ -162,7 +163,7 @@ export default function RecicladorDashboard() {
   useEffect(() => {
     const cargarSolicitudesPendientes = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/solicitudes', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/solicitudes`, {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         });
         if (response.ok) {
@@ -178,7 +179,7 @@ export default function RecicladorDashboard() {
 
   const aceptarSolicitud = async (solicitud) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/solicitudes/${solicitud.id}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/solicitudes/${solicitud.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -214,7 +215,7 @@ export default function RecicladorDashboard() {
   const completarServicio = async () => {
     if (!solicitudActiva) return;
     try {
-      const response = await fetch(`http://localhost:8000/api/solicitudes/${solicitudActiva.id}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/solicitudes/${solicitudActiva.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
