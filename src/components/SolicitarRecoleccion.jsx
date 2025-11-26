@@ -83,7 +83,7 @@ export default function SolicitarRecoleccion() {
   useEffect(() => {
     if (!userId) return;
 
-    socketRef.current = io('http://localhost:8000/realtime', {
+    socketRef.current = io(`${import.meta.env.VITE_API_URL}/realtime`, {
       path: `/ws/${userId}`,
       transports: ['websocket'],
     });
@@ -114,7 +114,7 @@ export default function SolicitarRecoleccion() {
     if (!ubicacion) return alert('Esperando tu ubicación...');
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/solicitudes', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/solicitudes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
