@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
+import io from 'socket.io-client';
 import { me } from '../api/auth';
 
 // Fix iconos Leaflet
@@ -78,32 +79,31 @@ export default function SolicitarRecoleccion() {
     }
   }, []);
 
-  // 🔹 Conectar WebSocket solo cuando tengamos userId
+  // 🔹 Conectar Socket.IO solo cuando tengamos userId
   useEffect(() => {
     if (!userId) return;
 
-    const wsUrl = import.meta.env.VITE_API_URL.replace('https://', 'wss://').replace('http://', 'ws://');
-    const ws = new WebSocket(`${wsUrl}/realtime/ws/${userId}`);
-    socketRef.current = ws;
+    const socket = io(import.meta.env.VITE_API_URL, {
+      path: '/ws/socket.io',
+      transports: ['websocket'],
+    });
+    socketRef.current = socket;
 
-    ws.onopen = () => console.log('WebSocket conectado ✅');
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'solicitud_aceptada') {
-        setSolicitudActiva((prev) => ({
-          ...prev,
-          estado: 'aceptada',
-          reciclador_id: data.reciclador_id,
-        }));
-        alert('¡Un reciclador aceptó tu solicitud! Está en camino 🚗');
-      } else if (data.type === 'ubicacion_reciclador') {
-        setRecicladorUbicacion({ lat: data.lat, lng: data.lng });
-      }
-    };
-    ws.onerror = (err) => console.error('Error WS:', err);
-    ws.onclose = () => console.log('WebSocket desconectado ❌');
+    socket.on('connect', () => console.log('Socket.IO conectado ✅'));
+    socket.on('solicitud_aceptada', (data) => {
+      setSolicitudActiva((prev) => ({
+        ...prev,
+        estado: 'aceptada',
+        reciclador_id: data.reciclador_id,
+      }));
+      alert('¡Un reciclador aceptó tu solicitud! Está en camino 🚗');
+    });
+    socket.on('ubicacion_reciclador', (data) => {
+      setRecicladorUbicacion({ lat: data.lat, lng: data.lng });
+    });
+    socket.on('disconnect', () => console.log('Socket.IO desconectado ❌'));
 
-    return () => ws.close();
+    return () => socket.disconnect();
   }, [userId]);
 
   // 🔹 Crear solicitud
@@ -131,12 +131,7 @@ export default function SolicitarRecoleccion() {
       const solicitud = await response.json();
       setSolicitudActiva(solicitud);
 
-      socketRef.current?.send(
-        JSON.stringify({
-          type: 'nueva_solicitud',
-          solicitud,
-        })
-      );
+      socketRef.current?.emit('nueva_solicitud', { solicitud });
 
       alert('¡Solicitud creada! Buscando recicladores cercanos...');
     } catch (err) {
