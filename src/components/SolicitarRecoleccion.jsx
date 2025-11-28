@@ -105,7 +105,11 @@ export default function SolicitarRecoleccion() {
     ws.onerror = (err) => console.error('Error WS:', err);
     ws.onclose = () => console.log('WebSocket desconectado ❌');
 
-    return () => ws.close();
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
   }, [userId]);
 
   // 🔹 Crear solicitud
@@ -133,7 +137,7 @@ export default function SolicitarRecoleccion() {
       const solicitud = await response.json();
       setSolicitudActiva(solicitud);
 
-      if (socketRef.current?.readyState === WebSocket.OPEN) {
+      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
         socketRef.current.send(
           JSON.stringify({
             type: 'nueva_solicitud',
@@ -246,4 +250,136 @@ export default function SolicitarRecoleccion() {
                   </label>
                   <textarea
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-       
+                    value={formulario.descripcion}
+                    onChange={(e) =>
+                      setFormulario({
+                        ...formulario,
+                        descripcion: e.target.value,
+                      })
+                    }
+                    placeholder="Escribe aquí cualquier detalle adicional..."
+                    rows="3"
+                  ></textarea>
+                </div>
+
+                <button
+                  onClick={handleSolicitar}
+                  className="w-full bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-green-700 transition-all duration-200 flex items-center justify-center"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5 mr-3"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M3 3h18M3 12h18M3 21h18"
+                      />
+                    </svg>
+                  )}
+                  Solicitar Recolección
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white rounded-t-3xl shadow-2xl p-6">
+              <h2 className="text-2xl font-bold text-green-700 mb-4">
+                Solicitud Activa
+              </h2>
+              <div className="mb-4">
+                <span className="text-sm text-gray-500">
+                  Estado de la solicitud:
+                </span>
+                <span className="block text-lg font-semibold text-green-800">
+                  {solicitudActiva.estado === 'aceptada'
+                    ? 'Aceptada'
+                    : 'Pendiente'}
+                </span>
+              </div>
+
+              {solicitudActiva.estado === 'aceptada' && (
+                <div className="mb-4">
+                  <span className="text-sm text-gray-500">
+                    Reciclador asignado:
+                  </span>
+                  <span className="block text-lg font-semibold text-green-800">
+                    {solicitudActiva.reciclador_id}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex flex-col space-y-4">
+                <button
+                  onClick={() => {
+                    if (confirm('¿Estás seguro de cancelar la solicitud?')) {
+                      setSolicitudActiva(null);
+                      alert('Solicitud cancelada');
+                    }
+                  }}
+                  className="w-full bg-red-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-red-700 transition-all duration-200 flex items-center justify-center"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 mr-3"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                  Cancelar Solicitud
+                </button>
+
+                <button
+                  onClick={() => {
+                    if (solicitudActiva.estado === 'aceptada') {
+                      alert('Ya tienes una solicitud aceptada');
+                    } else {
+                      handleSolicitar();
+                    }
+                  }}
+                  className="w-full bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-green-700 transition-all duration-200 flex items-center justify-center"
+                >
+                  {loading ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5 mr-3"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M3 3h18M3 12h18M3 21h18"
+                      />
+                    </svg>
+                  )}
+                  {solicitudActiva.estado === 'aceptada'
+                    ? 'Solicitud Aceptada'
+                    : 'Reenviar Solicitud'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
