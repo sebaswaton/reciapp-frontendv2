@@ -175,22 +175,33 @@ export default function RecicladorDashboard() {
     };
   }, [disponible, solicitudActiva]);
 
-  // Cargar solicitudes pendientes
+  // Cargar solicitudes pendientes con polling
   useEffect(() => {
     const cargarSolicitudesPendientes = async () => {
       try {
+        console.log('🔍 Cargando solicitudes pendientes...');
         const response = await fetch(`${import.meta.env.VITE_API_URL}/api/solicitudes`, {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         });
         if (response.ok) {
           const solicitudes = await response.json();
-          setSolicitudesPendientes(solicitudes.filter((s) => s.estado === 'pendiente'));
+          console.log('📋 Todas las solicitudes:', solicitudes);
+          const pendientes = solicitudes.filter((s) => s.estado === 'pendiente');
+          console.log('⏳ Solicitudes pendientes:', pendientes);
+          setSolicitudesPendientes(pendientes);
         }
       } catch (error) {
         console.error('Error cargando solicitudes:', error);
       }
     };
+    
+    // Cargar inmediatamente
     cargarSolicitudesPendientes();
+    
+    // Recargar cada 5 segundos
+    const interval = setInterval(cargarSolicitudesPendientes, 5000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const aceptarSolicitud = async (solicitud) => {

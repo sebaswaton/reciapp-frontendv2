@@ -135,15 +135,20 @@ export default function SolicitarRecoleccion() {
 
       if (!response.ok) throw new Error('Error al crear solicitud');
       const solicitud = await response.json();
+      console.log('✅ Solicitud creada:', solicitud);
       setSolicitudActiva(solicitud);
 
+      // Enviar mensaje WebSocket
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-        socketRef.current.send(
-          JSON.stringify({
-            type: 'nueva_solicitud',
-            solicitud,
-          })
-        );
+        const mensaje = {
+          type: 'nueva_solicitud',
+          solicitud,
+        };
+        console.log('📤 Enviando mensaje WebSocket:', mensaje);
+        socketRef.current.send(JSON.stringify(mensaje));
+        console.log('✅ Mensaje enviado correctamente');
+      } else {
+        console.warn('⚠️ WebSocket no está abierto. ReadyState:', socketRef.current?.readyState);
       }
 
       alert('¡Solicitud creada! Buscando recicladores cercanos...');
