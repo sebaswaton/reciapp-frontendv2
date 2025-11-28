@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet-routing-machine';
-import io from 'socket.io-client';
 import { me } from '../api/auth';
 
 const userIcon = new L.Icon({
@@ -84,37 +83,37 @@ export default function RecicladorDashboard() {
     getUser();
   }, []);
 
-  // Conexión Socket.IO solo cuando tengamos userId
+  // Conexión WebSocket solo cuando tengamos userId
   useEffect(() => {
     if (!userId) return;
 
-    const socket = io(import.meta.env.VITE_API_URL, {
-      path: '/socket.io',  // Cambiar de '/ws/socket.io' a '/socket.io'
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    });
-    socketRef.current = socket;
+    const wsUrl = import.meta.env.VITE_API_URL.replace('https://', 'wss://').replace('http://', 'ws://');
+    const ws = new WebSocket(`${wsUrl}/ws/${userId}`);
+    socketRef.current = ws;
 
-    socket.on('connect', () => console.log('Socket.IO conectado ✅'));
-    socket.on('nueva_solicitud', (data) => {
-      setSolicitudesPendientes((prev) => [...prev, data.solicitud]);
-      if (Notification.permission === 'granted') {
-        new Notification('Nueva solicitud de reciclaje', {
-          body: `${data.solicitud.tipo_material} - ${data.solicitud.cantidad}kg`,
-          icon: '/logo.png',
-        });
+    ws.onopen = () => console.log('WebSocket conectado ✅');
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      console.log('Mensaje recibido:', data);
+      
+      if (data.type === 'nueva_solicitud') {
+        setSolicitudesPendientes((prev) => [...prev, data.solicitud]);
+        if (Notification.permission === 'granted') {
+          new Notification('Nueva solicitud de reciclaje', {
+            body: `${data.solicitud.tipo_material} - ${data.solicitud.cantidad}kg`,
+            icon: '/logo.png',
+          });
+        }
       }
-    });
-    socket.on('connect_error', (err) => console.error('Socket error:', err));
-    socket.on('disconnect', () => console.log('Socket.IO desconectado ❌'));
+    };
+    ws.onerror = (err) => console.error('Error WS:', err);
+    ws.onclose = () => console.log('WebSocket cerrado ❌');
 
     if (Notification.permission === 'default') {
       Notification.requestPermission();
     }
 
-    return () => socket.disconnect();
+    return () => ws.close();
   }, [userId]);
 
   // Ubicación y envío en tiempo real
@@ -142,12 +141,15 @@ export default function RecicladorDashboard() {
         };
         setMiUbicacion(nuevaUbicacion);
 
-        if (socketRef.current && disponible) {
-          socketRef.current.emit('ubicacion_reciclador', {
-            lat: nuevaUbicacion.lat,
-            lng: nuevaUbicacion.lng,
-            solicitud_id: solicitudActiva?.id,
-          });
+        if (socketRef.current?.readyState === WebSocket.OPEN && disponible) {
+          socketRef.current.send(
+            JSON.stringify({
+              type: 'ubicacion_reciclador',
+              lat: nuevaUbicacion.lat,
+              lng: nuevaUbicacion.lng,
+              solicitud_id: solicitudActiva?.id,
+            })
+          );
         }
       },
       (error) => console.error('Error tracking ubicación:', error),
@@ -194,7 +196,11 @@ export default function RecicladorDashboard() {
       setSolicitudesPendientes((prev) => prev.filter((s) => s.id !== solicitud.id));
       setDisponible(false);
 
-      socketRef.current?.emit('aceptar_solicitud', { solicitud_id: solicitud.id });
+      if (socketRef.current?.readyState === WebSocket.OPEN) {
+        socketRef.current.send(
+          JSON.stringify({ type: 'aceptar_solicitud', solicitud_id: solicitud.id })
+        );
+      }
 
       alert('¡Solicitud aceptada! Dirígete a la ubicación del cliente');
     } catch (error) {
@@ -205,7 +211,11 @@ export default function RecicladorDashboard() {
 
   const rechazarSolicitud = (solicitudId) => {
     setSolicitudesPendientes((prev) => prev.filter((s) => s.id !== solicitudId));
-    socketRef.current?.emit('rechazar_solicitud', { solicitud_id: solicitudId });
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(
+        JSON.stringify({ type: 'rechazar_solicitud', solicitud_id: solicitudId })
+      );
+    }
   };
 
   const completarServicio = async () => {
