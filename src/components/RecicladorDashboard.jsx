@@ -91,13 +91,23 @@ export default function RecicladorDashboard() {
     const ws = new WebSocket(`${wsUrl}/ws/${userId}`);
     socketRef.current = ws;
 
-    ws.onopen = () => console.log('WebSocket conectado ✅');
+    ws.onopen = () => {
+      console.log('WebSocket conectado ✅');
+      console.log('User ID:', userId);
+    };
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       console.log('Mensaje recibido:', data);
       
       if (data.type === 'nueva_solicitud') {
-        setSolicitudesPendientes((prev) => [...prev, data.solicitud]);
+        console.log('Nueva solicitud recibida:', data.solicitud);
+        setSolicitudesPendientes((prev) => {
+          // Evitar duplicados
+          if (prev.some(s => s.id === data.solicitud.id)) {
+            return prev;
+          }
+          return [...prev, data.solicitud];
+        });
         if (Notification.permission === 'granted') {
           new Notification('Nueva solicitud de reciclaje', {
             body: `${data.solicitud.tipo_material} - ${data.solicitud.cantidad}kg`,
@@ -113,7 +123,11 @@ export default function RecicladorDashboard() {
       Notification.requestPermission();
     }
 
-    return () => ws.close();
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
   }, [userId]);
 
   // Ubicación y envío en tiempo real
@@ -310,8 +324,89 @@ export default function RecicladorDashboard() {
         </div>
 
         {/* Panel flotante */}
-        <div className="absolute bottom-0 left-0 right-0 z-10">
-          {/* ... tu panel inferior completo (idéntico al original) */}
+        <div className="absolute bottom-0 left-0 right-0 z-10 max-h-[50vh] overflow-y-auto">
+          {!solicitudActiva ? (
+            <div className="bg-white rounded-t-3xl shadow-2xl p-6">
+              <h2 className="text-2xl font-bold text-green-700 mb-4">
+                Solicitudes Disponibles
+              </h2>
+              {solicitudesPendientes.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">No hay solicitudes pendientes</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {solicitudesPendientes.map((solicitud) => (
+                    <div
+                      key={solicitud.id}
+                      className="bg-gray-50 rounded-xl p-4 border border-gray-200"
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h3 className="font-bold text-lg capitalize text-gray-800">
+                            {solicitud.tipo_material}
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            {solicitud.cantidad} kg
+                          </p>
+                          {solicitud.descripcion && (
+                            <p className="text-sm text-gray-500 mt-1">
+                              {solicitud.descripcion}
+                            </p>
+                          )}
+                        </div>
+                        <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs font-semibold">
+                          Pendiente
+                        </span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => aceptarSolicitud(solicitud)}
+                          className="flex-1 bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                          Aceptar
+                        </button>
+                        <button
+                          onClick={() => rechazarSolicitud(solicitud.id)}
+                          className="flex-1 bg-gray-300 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-400 transition-colors"
+                        >
+                          Rechazar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-white rounded-t-3xl shadow-2xl p-6">
+              <div className="text-center">
+                <h3 className="text-xl font-bold text-green-700 mb-2">
+                  Servicio en Curso
+                </h3>
+                <div className="bg-green-50 rounded-lg p-4 mb-4">
+                  <p className="font-semibold capitalize text-gray-800">
+                    {solicitudActiva.tipo_material}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {solicitudActiva.cantidad} kg
+                  </p>
+                  {routeInfo && (
+                    <div className="mt-2 text-sm text-gray-600">
+                      <p>Distancia: {routeInfo.distance} km</p>
+                      <p>Tiempo estimado: {routeInfo.time} min</p>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={completarServicio}
+                  className="w-full bg-green-600 text-white font-bold py-3 rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Completar Servicio
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
