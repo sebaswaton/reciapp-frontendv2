@@ -90,7 +90,10 @@ export default function RecicladorDashboard() {
 
     const socket = io(import.meta.env.VITE_API_URL, {
       path: '/ws/socket.io',
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     });
     socketRef.current = socket;
 
@@ -104,6 +107,7 @@ export default function RecicladorDashboard() {
         });
       }
     });
+    socket.on('connect_error', (err) => console.error('Socket error:', err));
     socket.on('disconnect', () => console.log('Socket.IO desconectado ❌'));
 
     if (Notification.permission === 'default') {
