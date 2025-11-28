@@ -84,7 +84,7 @@ export default function SolicitarRecoleccion() {
     if (!userId) return;
 
     const socket = io(import.meta.env.VITE_API_URL, {
-      path: '/ws/socket.io',
+      path: '/socket.io', // Cambiar de '/ws/socket.io' a '/socket.io'
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 5,
