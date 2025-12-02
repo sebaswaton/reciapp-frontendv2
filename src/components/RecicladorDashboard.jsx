@@ -116,21 +116,39 @@ export default function RecicladorDashboard() {
   // --- 2. WEBSOCKET ---
   useEffect(() => {
     if (!userId) return;
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-    const wsUrl = apiUrl.replace('https://', 'wss://').replace('http://', 'ws://');
-    const ws = new WebSocket(`${wsUrl}/realtime/ws/${userId}`);
+    const wsUrl = import.meta.env.VITE_API_URL.replace('https://', 'wss://').replace('http://', 'ws://');
+    const ws = new WebSocket(`${wsUrl}/ws/${userId}`);
     socketRef.current = ws;
+
+    ws.onopen = () => {
+      console.log('WebSocket conectado ✅');
+      console.log('User ID:', userId);
+    };
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
+      console.log('Mensaje recibido:', data);
+      
       if (data.type === 'nueva_solicitud') {
-        setSolicitudesPendientes((prev) => [...prev, data.solicitud]);
+        console.log('Nueva solicitud recibida:', data.solicitud);
+        setSolicitudesPendientes((prev) => {
+          if (prev.some(s => s.id === data.solicitud.id)) return prev;
+          return [...prev, data.solicitud];
+        });
         if (Notification.permission === 'granted') {
           new Notification('♻️ ¡Nueva oportunidad!', { body: 'Hay material reciclable cerca.' });
         }
       }
     };
-    return () => ws.close();
+
+    ws.onerror = (err) => console.error('Error WS:', err);
+    ws.onclose = () => console.log('WebSocket cerrado ❌');
+
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
   }, [userId]);
 
   // --- 3. GEOLOCALIZACIÓN ---
@@ -155,7 +173,7 @@ export default function RecicladorDashboard() {
         };
         setMiUbicacion(nuevaUbicacion);
 
-        if (socketRef.current && disponible) {
+        if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN && !disponible) {
           socketRef.current.send(JSON.stringify({
             type: 'ubicacion_reciclador',
             lat: nuevaUbicacion.lat,
@@ -192,7 +210,6 @@ export default function RecicladorDashboard() {
   }, []);
 
   // --- FUNCIONES DE ACCIÓN ---
-
   const cerrarSesion = () => {
     localStorage.removeItem('token');
     window.location.href = '/'; 
@@ -225,7 +242,11 @@ export default function RecicladorDashboard() {
       setSolicitudesPendientes((prev) => prev.filter((s) => s.id !== solicitud.id));
       setDisponible(false);
       
-      socketRef.current.send(JSON.stringify({ type: 'aceptar_solicitud', solicitud_id: solicitud.id }));
+      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        socketRef.current.send(
+          JSON.stringify({ type: 'aceptar_solicitud', solicitud_id: solicitud.id })
+        );
+      }
     } catch (error) {
       alert('No se pudo aceptar la solicitud.');
     }
