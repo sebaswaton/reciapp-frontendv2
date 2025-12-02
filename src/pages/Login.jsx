@@ -3,34 +3,47 @@ import { login, me } from "../api/auth";
 import { useNavigate } from "react-router-dom";
 
 export default function Login() {
+  const navigate = useNavigate();
+
   const [correo, setCorreo] = useState("");
   const [contrasena, setContrasena] = useState("");
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
 
-  // URL de la API desde variable de entorno
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
-  // Estados del registro
   const [showRegister, setShowRegister] = useState(false);
   const [registerData, setRegisterData] = useState({
     nombre: "",
     correo: "",
     contrasena: "",
     confirmarContrasena: "",
-    rol: "ciudadano"
+    rol: "ciudadano",
   });
 
-  // Inicializar el chat de n8n
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
+  // 🟢 Carrusel de Reciappcito
+// 🟢 Carrusel de Reciappcito
+const reciImages = [
+  "/reciappcito/reciappcito.png",
+];
+
+
+  const [activeReciIndex, setActiveReciIndex] = useState(0);
+
   useEffect(() => {
-    // Cargar el CSS del chat
-    const link = document.createElement('link');
-    link.href = 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css';
-    link.rel = 'stylesheet';
+    const interval = setInterval(() => {
+      setActiveReciIndex((prev) => (prev + 1) % reciImages.length);
+    }, 3500); // cambia cada 3.5s
+    return () => clearInterval(interval);
+  }, [reciImages.length]);
+
+  // 🟢 Chat n8n (restaurado)
+  useEffect(() => {
+    const link = document.createElement("link");
+    link.href = "https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css";
+    link.rel = "stylesheet";
     document.head.appendChild(link);
 
-    // Agregar estilos personalizados para el chat (colores del tema verde)
-    const style = document.createElement('style');
+    const style = document.createElement("style");
     style.textContent = `
       :root {
         --chat--color--primary: #10b981;
@@ -57,51 +70,19 @@ export default function Login() {
         --chat--header--color: var(--chat--color-white);
         --chat--header--border-top: none;
         --chat--header--border-bottom: none;
-        --chat--heading--font-size: 1.5em;
-        --chat--subtitle--font-size: 0.875rem;
-        --chat--subtitle--line-height: 1.5;
-        --chat--textarea--height: 50px;
-        --chat--message--font-size: 0.95rem;
-        --chat--message--padding: 0.75rem 1rem;
-        --chat--message--border-radius: 1rem;
-        --chat--message-line-height: 1.6;
-        --chat--message--bot--background: rgba(255, 255, 255, 0.95);
+        --chat--heading--font-size: 1.3rem;
+        --chat--subtitle--font-size: 0.85rem;
+        --chat--message--bot--background: rgba(255,255,255,0.97);
         --chat--message--bot--color: #065f46;
-        --chat--message--bot--border: 1px solid rgba(16, 185, 129, 0.2);
         --chat--message--user--background: #d1fae5;
         --chat--message--user--color: #064e3b;
-        --chat--message--user--border: 1px solid #10b981;
-        --chat--message--pre--background: rgba(16, 185, 129, 0.1);
         --chat--toggle--background: linear-gradient(135deg, #10b981 0%, #14b8a6 100%);
-        --chat--toggle--hover--background: linear-gradient(135deg, #059669 0%, #0d9488 100%);
-        --chat--toggle--active--background: linear-gradient(135deg, #047857 0%, #0f766e 100%);
-        --chat--toggle--color: var(--chat--color-white);
-        --chat--toggle--size: 64px;
-        --chat--input--background: #ffffff;
-        --chat--input--color: #065f46;
-        --chat--input--border-color: rgba(16, 185, 129, 0.3);
-      
-      }
-      
-      .chat-window {
-        box-shadow: 0 20px 25px -5px rgba(16, 185, 129, 0.1), 0 10px 10px -5px rgba(16, 185, 129, 0.04);
-        backdrop-filter: blur(10px);
-      }
-      
-      .chat-toggle {
-        box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.3), 0 4px 6px -2px rgba(16, 185, 129, 0.2);
-        transition: all 0.3s ease;
-      }
-      
-      .chat-toggle:hover {
-        transform: scale(1.1);
       }
     `;
     document.head.appendChild(style);
 
-    // Cargar e inicializar el script del chat
-    const script = document.createElement('script');
-    script.type = 'module';
+    const script = document.createElement("script");
+    script.type = "module";
     script.textContent = `
       import { createChat } from 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js';
       createChat({
@@ -110,7 +91,6 @@ export default function Login() {
     `;
     document.body.appendChild(script);
 
-    // Limpieza al desmontar el componente
     return () => {
       document.head.removeChild(link);
       document.head.removeChild(style);
@@ -118,6 +98,7 @@ export default function Login() {
     };
   }, []);
 
+  // 🟢 Login
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -125,8 +106,7 @@ export default function Login() {
       await login(correo, contrasena);
       const user = await me();
       const rol = (user?.rol || "").toLowerCase();
-      
-      // Redirecciones según el rol
+
       if (rol === "admin") {
         navigate("/dashboard", { replace: true });
       } else if (rol === "reciclador") {
@@ -143,10 +123,10 @@ export default function Login() {
     }
   };
 
+  // 🟢 Registro
   const handleRegister = async (e) => {
     e.preventDefault();
-    
-    // Validaciones
+
     if (registerData.contrasena !== registerData.confirmarContrasena) {
       alert("Las contraseñas no coinciden");
       return;
@@ -159,23 +139,20 @@ export default function Login() {
 
     setLoading(true);
     try {
-      // ✅ CAMBIO AQUÍ: Usa API_URL en lugar de localhost
       const response = await fetch(`${API_URL}/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nombre: registerData.nombre,
           correo: registerData.correo,
           contrasena: registerData.contrasena,
-          rol: registerData.rol
-        })
+          rol: registerData.rol,
+        }),
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.detail || 'Error al registrar');
+        throw new Error(error.detail || "Error al registrar");
       }
 
       alert("¡Registro exitoso! Ahora puedes iniciar sesión");
@@ -186,7 +163,7 @@ export default function Login() {
         correo: "",
         contrasena: "",
         confirmarContrasena: "",
-        rol: "ciudadano"
+        rol: "ciudadano",
       });
     } catch (err) {
       alert(err.message || "Error al registrar. Intenta de nuevo");
@@ -196,339 +173,253 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-400 via-emerald-500 to-teal-600 p-4 relative overflow-hidden">
-      {/* Círculos animados de fondo */}
-      <div className="absolute top-0 left-0 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
-      <div className="absolute bottom-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
-      <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-white/5 rounded-full blur-2xl animate-bounce"></div>
+    <div className="min-h-screen bg-gradient-to-br from-green-400 via-emerald-500 to-teal-600 flex items-center justify-center px-4">
+      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+        {/* PANEL IZQUIERDO: Reciappcito + mensaje */}
+        <div className="hidden lg:flex flex-col items-center justify-center text-white relative">
+          {/* Glow circular */}
+          <div className="absolute -top-10 -left-16 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 right-10 w-64 h-64 bg-white/10 rounded-full blur-2xl" />
 
-      {/* Formulario */}
-      <div className="relative z-10 w-full max-w-md">
-        {/* Logo/Icono animado */}
-        <div className="flex justify-center mb-8 animate-float">
-          <div className="bg-white/20 backdrop-blur-lg p-6 rounded-full shadow-2xl border border-white/30">
-            <svg 
-              className="w-16 h-16 text-white" 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
+          <div className="relative flex flex-col items-center">
+            <div className="w-72 h-72 rounded-3xl bg-white/15 backdrop-blur-xl border border-white/30 shadow-2xl flex items-center justify-center overflow-hidden">
+              <img
+                src={reciImages[activeReciIndex]}
+                alt="Reciappcito"
+                className="w-56 h-56 object-contain transition-transform duration-700 ease-out transform hover:scale-105"
               />
-            </svg>
+            </div>
+
+            <h2 className="mt-8 text-3xl font-bold drop-shadow-lg text-center">
+              Con Reciappcito, reciclar es más divertido 🌱
+            </h2>
+            <p className="mt-3 text-white/80 text-center max-w-md">
+              Conecta con recicladores formales, gana recompensas y ayuda a tu comunidad
+              a cuidar el planeta, un residuo a la vez.
+            </p>
+
+            <div className="mt-6 grid grid-cols-2 gap-4 text-sm text-white/90">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs">
+                  ♻️
+                </span>
+                <span>Reciclaje responsable</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs">
+                  👨‍👩‍👧
+                </span>
+                <span>Apoyo a las familias</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs">
+                  🎁
+                </span>
+                <span>Beneficios y recompensas</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs">
+                  🌍
+                </span>
+                <span>Impacto ambiental real</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Card del formulario */}
-        <div className="bg-white/10 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20 transform transition-all duration-500 hover:scale-105 animate-slideUp">
-          <h1 className="text-4xl font-bold mb-2 text-center text-white drop-shadow-lg">
-            ReciApp
-          </h1>
-          <p className="text-center text-white/80 mb-8 text-sm">
-            {showRegister ? "Crear nueva cuenta" : "Bienvenido de vuelta"}
-          </p>
+        {/* PANEL DERECHO: Card Login / Registro */}
+        <div className="flex items-center justify-center">
+          <div className="relative w-full max-w-md bg-white/15 backdrop-blur-2xl border border-white/25 rounded-3xl shadow-2xl px-8 py-10 text-white">
+            {/* Logo/icono */}
+            <div className="flex flex-col items-center mb-6">
+              <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center mb-3">
+                <svg
+                  className="w-6 h-6 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9M4.582 9H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+              </div>
+              <h1 className="text-3xl font-bold tracking-tight">ReciApp</h1>
+              <p className="text-sm text-white/75 mt-1">
+                Transformando reciclaje en futuro sostenible ✨
+              </p>
+            </div>
 
-          {!showRegister ? (
-            // FORMULARIO DE LOGIN
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Campo Email */}
-              <div className="group">
-                <label className="block text-white/90 text-sm font-medium mb-2 transition-all duration-300 group-focus-within:text-white">
-                  Correo Electrónico
-                </label>
-                <div className="relative">
+            {/* Título del formulario */}
+            <h2 className="text-lg font-semibold mb-4 text-center">
+              {showRegister ? "Crear nueva cuenta" : "Iniciar sesión"}
+            </h2>
+
+            {/* FORMULARIO */}
+            {!showRegister ? (
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div>
+                  <label className="block text-xs font-medium text-white/80 mb-1">
+                    Correo electrónico
+                  </label>
                   <input
                     type="email"
                     placeholder="tu@email.com"
-                    className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all duration-300 backdrop-blur-sm"
+                    className="w-full px-4 py-3 rounded-xl bg-white/15 border border-white/30 text-sm text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/70"
                     value={correo}
                     onChange={(e) => setCorreo(e.target.value)}
                     required
                   />
-                  <svg 
-                    className="absolute right-4 top-3.5 w-5 h-5 text-white/50" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
-                    <path 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round" 
-                      strokeWidth={2} 
-                      d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" 
-                    />
-                  </svg>
                 </div>
-              </div>
 
-              {/* Campo Contraseña */}
-              <div className="group">
-                <label className="block text-white/90 text-sm font-medium mb-2 transition-all duration-300 group-focus-within:text-white">
-                  Contraseña
-                </label>
-                <div className="relative">
+                <div>
+                  <label className="block text-xs font-medium text-white/80 mb-1">
+                    Contraseña
+                  </label>
                   <input
                     type="password"
                     placeholder="••••••••"
-                    className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all duration-300 backdrop-blur-sm"
+                    className="w-full px-4 py-3 rounded-xl bg-white/15 border border-white/30 text-sm text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/70"
                     value={contrasena}
                     onChange={(e) => setContrasena(e.target.value)}
                     required
                   />
-                  <svg 
-                    className="absolute right-4 top-3.5 w-5 h-5 text-white/50" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
+                  <button
+                    type="button"
+                    className="mt-1 text-[11px] text-white/70 hover:text-white underline underline-offset-2"
                   >
-                    <path 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round" 
-                      strokeWidth={2} 
-                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" 
-                    />
-                  </svg>
+                    ¿Olvidaste tu contraseña?
+                  </button>
                 </div>
-              </div>
 
-              {/* Botón Login */}
-              <button 
-                disabled={loading} 
-                className="w-full bg-white text-green-600 font-bold py-3 px-6 rounded-xl hover:bg-green-50 transform hover:scale-105 transition-all duration-300 shadow-lg disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                      <circle 
-                        className="opacity-25" 
-                        cx="12" 
-                        cy="12" 
-                        r="10" 
-                        stroke="currentColor" 
-                        strokeWidth="4" 
-                        fill="none"
-                      />
-                      <path 
-                        className="opacity-75" 
-                        fill="currentColor" 
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      />
-                    </svg>
-                    Ingresando...
-                  </>
-                ) : (
-                  <>
-                    Iniciar Sesión
-                    <svg 
-                      className="w-5 h-5" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round" 
-                        strokeWidth={2} 
-                        d="M13 7l5 5m0 0l-5 5m5-5H6" 
-                      />
-                    </svg>
-                  </>
-                )}
-              </button>
-            </form>
-          ) : (
-            // FORMULARIO DE REGISTRO
-            <form onSubmit={handleRegister} className="space-y-4">
-              {/* Nombre */}
-              <div className="group">
-                <label className="block text-white/90 text-sm font-medium mb-2">
-                  Nombre Completo
-                </label>
-                <input
-                  type="text"
-                  placeholder="Juan Pérez"
-                  className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all backdrop-blur-sm"
-                  value={registerData.nombre}
-                  onChange={(e) => setRegisterData({...registerData, nombre: e.target.value})}
-                  required
-                />
-              </div>
-
-              {/* Email */}
-              <div className="group">
-                <label className="block text-white/90 text-sm font-medium mb-2">
-                  Correo Electrónico
-                </label>
-                <input
-                  type="email"
-                  placeholder="tu@email.com"
-                  className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all backdrop-blur-sm"
-                  value={registerData.correo}
-                  onChange={(e) => setRegisterData({...registerData, correo: e.target.value})}
-                  required
-                />
-              </div>
-
-              {/* Rol */}
-              <div className="group">
-                <label className="block text-white/90 text-sm font-medium mb-2">
-                  Tipo de Usuario
-                </label>
-                <select
-                  className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-white/50 transition-all backdrop-blur-sm"
-                  value={registerData.rol}
-                  onChange={(e) => setRegisterData({...registerData, rol: e.target.value})}
-                  required
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full mt-2 py-3 rounded-xl bg-white text-green-600 font-semibold text-sm shadow-lg hover:bg-green-50 transition disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  <option value="ciudadano" className="bg-green-700">Ciudadano</option>
-                  <option value="reciclador" className="bg-green-700">Reciclador</option>
-                </select>
-              </div>
+                  {loading ? "Ingresando..." : "Iniciar Sesión"}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-white/80 mb-1">
+                    Nombre completo
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Juan Pérez"
+                    className="w-full px-4 py-3 rounded-xl bg-white/15 border border-white/30 text-sm text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/70"
+                    value={registerData.nombre}
+                    onChange={(e) =>
+                      setRegisterData({ ...registerData, nombre: e.target.value })
+                    }
+                    required
+                  />
+                </div>
 
-              {/* Contraseña */}
-              <div className="group">
-                <label className="block text-white/90 text-sm font-medium mb-2">
-                  Contraseña
-                </label>
-                <input
-                  type="password"
-                  placeholder="Mínimo 6 caracteres"
-                  className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all backdrop-blur-sm"
-                  value={registerData.contrasena}
-                  onChange={(e) => setRegisterData({...registerData, contrasena: e.target.value})}
-                  required
-                />
-              </div>
+                <div>
+                  <label className="block text-xs font-medium text-white/80 mb-1">
+                    Correo electrónico
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="tu@email.com"
+                    className="w-full px-4 py-3 rounded-xl bg-white/15 border border-white/30 text-sm text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/70"
+                    value={registerData.correo}
+                    onChange={(e) =>
+                      setRegisterData({ ...registerData, correo: e.target.value })
+                    }
+                    required
+                  />
+                </div>
 
-              {/* Confirmar Contraseña */}
-              <div className="group">
-                <label className="block text-white/90 text-sm font-medium mb-2">
-                  Confirmar Contraseña
-                </label>
-                <input
-                  type="password"
-                  placeholder="Repite tu contraseña"
-                  className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/50 transition-all backdrop-blur-sm"
-                  value={registerData.confirmarContrasena}
-                  onChange={(e) => setRegisterData({...registerData, confirmarContrasena: e.target.value})}
-                  required
-                />
-              </div>
+                <div>
+                  <label className="block text-xs font-medium text-white/80 mb-1">
+                    Tipo de usuario
+                  </label>
+                  <select
+                    className="w-full px-4 py-3 rounded-xl bg-white/15 border border-white/30 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white/70"
+                    value={registerData.rol}
+                    onChange={(e) =>
+                      setRegisterData({ ...registerData, rol: e.target.value })
+                    }
+                  >
+                    <option value="ciudadano" className="text-black">
+                      Ciudadano
+                    </option>
+                    <option value="reciclador" className="text-black">
+                      Reciclador
+                    </option>
+                  </select>
+                </div>
 
-              {/* Botón Registrar */}
-              <button 
-                disabled={loading} 
-                className="w-full bg-white text-green-600 font-bold py-3 px-6 rounded-xl hover:bg-green-50 transform hover:scale-105 transition-all duration-300 shadow-lg disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                <div>
+                  <label className="block text-xs font-medium text-white/80 mb-1">
+                    Contraseña
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Mínimo 6 caracteres"
+                    className="w-full px-4 py-3 rounded-xl bg-white/15 border border-white/30 text-sm text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/70"
+                    value={registerData.contrasena}
+                    onChange={(e) =>
+                      setRegisterData({ ...registerData, contrasena: e.target.value })
+                    }
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-white/80 mb-1">
+                    Confirmar contraseña
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Repite tu contraseña"
+                    className="w-full px-4 py-3 rounded-xl bg-white/15 border border-white/30 text-sm text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/70"
+                    value={registerData.confirmarContrasena}
+                    onChange={(e) =>
+                      setRegisterData({
+                        ...registerData,
+                        confirmarContrasena: e.target.value,
+                      })
+                    }
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full mt-2 py-3 rounded-xl bg-white text-green-600 font-semibold text-sm shadow-lg hover:bg-green-50 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {loading ? "Registrando..." : "Crear Cuenta"}
+                </button>
+              </form>
+            )}
+
+            {/* Toggle Login/Registro */}
+            <div className="mt-6 text-center">
+              <button
+                onClick={() => setShowRegister(!showRegister)}
+                className="text-sm text-white/80 hover:text-white underline underline-offset-4"
               >
-                {loading ? (
-                  <>
-                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                      <circle 
-                        className="opacity-25" 
-                        cx="12" 
-                        cy="12" 
-                        r="10" 
-                        stroke="currentColor" 
-                        strokeWidth="4" 
-                        fill="none"
-                      />
-                      <path 
-                        className="opacity-75" 
-                        fill="currentColor" 
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      />
-                    </svg>
-                    Registrando...
-                  </>
-                ) : (
-                  <>
-                    Crear Cuenta
-                    <svg 
-                      className="w-5 h-5" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round" 
-                        strokeWidth={2} 
-                        d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" 
-                      />
-                    </svg>
-                  </>
-                )}
+                {showRegister
+                  ? "¿Ya tienes cuenta? Inicia sesión"
+                  : "¿No tienes cuenta? Regístrate"}
               </button>
-            </form>
-          )}
+            </div>
 
-          {/* Toggle entre Login y Registro */}
-          <div className="mt-6 text-center">
-            <button
-              onClick={() => setShowRegister(!showRegister)}
-              className="text-white/80 text-sm hover:text-white transition-colors duration-300 underline-offset-4 hover:underline"
-            >
-              {showRegister ? "¿Ya tienes cuenta? Inicia sesión" : "¿No tienes cuenta? Regístrate"}
-            </button>
+            <p className="mt-6 text-center text-[11px] text-white/60">
+              ReciApp © 2025 — Unidos por el planeta 🌍
+            </p>
           </div>
         </div>
-
-        {/* Mensaje inferior */}
-        <p className="text-center text-white/60 text-sm mt-6 animate-fadeIn">
-          Reciclaje inteligente para un futuro sostenible 🌱
-        </p>
       </div>
-
-      <style>{`
-        @keyframes float {
-          0%, 100% {
-            transform: translateY(0px);
-          }
-          50% {
-            transform: translateY(-20px);
-          }
-        }
-
-        @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(30px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-          }
-          to {
-            opacity: 1;
-          }
-        }
-
-        .animate-float {
-          animation: float 3s ease-in-out infinite;
-        }
-
-        .animate-slideUp {
-          animation: slideUp 0.6s ease-out;
-        }
-
-        .animate-fadeIn {
-          animation: fadeIn 1s ease-out 0.3s both;
-        }
-
-        .delay-1000 {
-          animation-delay: 1s;
-        }
-      `}</style>
     </div>
   );
 }

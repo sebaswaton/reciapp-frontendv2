@@ -9,16 +9,45 @@ export default function CiudadanoDashboard() {
   const [solicitudes, setSolicitudes] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // 👇 NUEVO: Wallet (Puntos Verdes)
+  const [wallet, setWallet] = useState(null);
+  const [loadingWallet, setLoadingWallet] = useState(true);
+
   useEffect(() => {
     const loadUserData = async () => {
       try {
         const userData = await me();
         setUser(userData);
 
-        // Cargar solicitudes del ciudadano GAAAAAAA :v
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/solicitudes`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        });
+        // 👇 CARGAR WALLET
+        try {
+          const walletRes = await fetch(
+            `${import.meta.env.VITE_API_URL}/wallets/${userData.id}`,
+            {
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem('token')}`,
+              },
+            }
+          );
+
+          if (walletRes.ok) {
+            const walletJson = await walletRes.json();
+            setWallet(walletJson);
+          }
+        } catch (err) {
+          console.error("Error cargando wallet:", err);
+        } finally {
+          setLoadingWallet(false);
+        }
+
+        // 👇 CARGAR SOLICITUDES DEL CIUDADANO
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/solicitudes`,
+          {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          }
+        );
+
         if (response.ok) {
           const data = await response.json();
           setSolicitudes(data.filter((s) => s.ciudadano_id === userData.id));
@@ -45,12 +74,18 @@ export default function CiudadanoDashboard() {
   );
   const solicitudesCompletadas = solicitudes.filter((s) => s.estado === 'completada');
 
+  // 👇 CÁLCULOS PARA LA BARRA
+  const puntos = wallet?.puntos ?? 0;
+  const progreso = Math.min((puntos / 100) * 100, 100); // %
+  const faltan = Math.max(100 - puntos, 0);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-400 via-emerald-500 to-teal-600">
       <Navbar />
-      
+
       <div className="container mx-auto px-4 py-8">
-        {/* Header de bienvenida */}
+
+        {/* Header */}
         <div className="mb-8 text-white">
           <h1 className="text-4xl font-bold mb-2">
             ¡Hola, {user?.nombre}! 👋
@@ -58,11 +93,33 @@ export default function CiudadanoDashboard() {
           <p className="text-lg text-white/90">
             Bienvenido a tu panel de control de reciclaje
           </p>
+
+          {/* 👇 BARRA DE PROGRESO */}
+          {!loadingWallet && (
+            <div className="bg-white/20 backdrop-blur-md p-6 rounded-2xl shadow-lg mt-6">
+
+              <p className="text-center text-white text-lg font-medium mb-3">
+                🎯 Te faltan {faltan} puntos para tu próxima recompensa 🎁
+              </p>
+
+              <div className="w-full bg-white/30 rounded-full h-4 overflow-hidden">
+                <div
+                  className="h-full bg-white shadow-md rounded-full transition-all duration-500"
+                  style={{ width: `${progreso}%` }}
+                ></div>
+              </div>
+
+              <p className="text-right text-white/80 text-sm mt-2">
+                {puntos}/100 Puntos Verdes
+              </p>
+            </div>
+          )}
         </div>
 
-        {/* Grid de tarjetas principales */}
+        {/* Grid principal */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {/* Tarjeta principal: Solicitar Recolección */}
+          
+          {/* Solicitar Recolección */}
           <div
             onClick={() => navigate('/solicitar-recoleccion')}
             className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-8 cursor-pointer transform transition-all duration-300 hover:scale-105 hover:shadow-3xl group col-span-1 md:col-span-2 lg:col-span-1"
@@ -79,16 +136,17 @@ export default function CiudadanoDashboard() {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                  />
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
                 </svg>
               </div>
+
               <h2 className="text-2xl font-bold text-gray-800 mb-3">
                 Solicitar Recolección
               </h2>
               <p className="text-gray-600 mb-4">
                 Programa una recolección de materiales reciclables en tu ubicación
               </p>
+
               <div className="flex items-center gap-2 text-green-600 font-semibold">
                 Comenzar
                 <svg
@@ -97,39 +155,26 @@ export default function CiudadanoDashboard() {
                   stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 7l5 5m0 0l-5 5m5-5H6"
-                  />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M13 7l5 5m0 0l-5 5m5-5H6"/>
                 </svg>
               </div>
             </div>
           </div>
 
-          {/* Tarjeta: Solicitudes Activas */}
+          {/* Activas */}
           <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-gray-800">
-                Solicitudes Activas
-              </h3>
+              <h3 className="text-xl font-bold text-gray-800">Solicitudes Activas</h3>
               <div className="bg-green-100 p-3 rounded-full">
-                <svg
-                  className="w-6 h-6 text-green-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                  />
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor"
+                     viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
                 </svg>
               </div>
             </div>
+
             <div className="text-center">
               <p className="text-5xl font-bold text-green-600 mb-2">
                 {solicitudesActivas.length}
@@ -142,28 +187,19 @@ export default function CiudadanoDashboard() {
             </div>
           </div>
 
-          {/* Tarjeta: Solicitudes Completadas */}
+          {/* Completadas */}
           <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-gray-800">
-                Completadas
-              </h3>
+              <h3 className="text-xl font-bold text-gray-800">Completadas</h3>
               <div className="bg-emerald-100 p-3 rounded-full">
-                <svg
-                  className="w-6 h-6 text-emerald-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
+                <svg className="w-6 h-6 text-emerald-600" fill="none"
+                     stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round"
+                        strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9"/>
                 </svg>
               </div>
             </div>
+
             <div className="text-center">
               <p className="text-5xl font-bold text-emerald-600 mb-2">
                 {solicitudesCompletadas.length}
@@ -177,12 +213,13 @@ export default function CiudadanoDashboard() {
           </div>
         </div>
 
-        {/* Lista de solicitudes recientes */}
+        {/* Lista de solicitudes */}
         {solicitudes.length > 0 && (
           <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-6">
             <h3 className="text-2xl font-bold text-gray-800 mb-6">
               Mis Solicitudes Recientes
             </h3>
+
             <div className="space-y-4">
               {solicitudes.slice(0, 5).map((solicitud) => (
                 <div
@@ -219,17 +256,18 @@ export default function CiudadanoDashboard() {
                         />
                       </svg>
                     </div>
+
                     <div>
                       <p className="font-semibold text-gray-800 capitalize">
                         {solicitud.tipo_material}
                       </p>
                       <p className="text-sm text-gray-600">
-                        {solicitud.cantidad} kg
-                        {solicitud.descripcion &&
-                          ` - ${solicitud.descripcion}`}
+                        {solicitud.cantidad} kg{' '}
+                        {solicitud.descripcion && `- ${solicitud.descripcion}`}
                       </p>
                     </div>
                   </div>
+
                   <div className="text-right">
                     <span
                       className={`px-3 py-1 rounded-full text-sm font-semibold ${
@@ -253,7 +291,6 @@ export default function CiudadanoDashboard() {
           </div>
         )}
 
-        {/* Mensaje si no hay solicitudes */}
         {solicitudes.length === 0 && (
           <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-12 text-center">
             <div className="bg-green-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -271,13 +308,14 @@ export default function CiudadanoDashboard() {
                 />
               </svg>
             </div>
+
             <h3 className="text-2xl font-bold text-gray-800 mb-3">
               ¡Comienza a reciclar hoy!
             </h3>
             <p className="text-gray-600 mb-6">
-              Aún no tienes solicitudes. Crea tu primera solicitud de
-              recolección.
+              Aún no tienes solicitudes. Crea tu primera solicitud de recolección.
             </p>
+
             <button
               onClick={() => navigate('/solicitar-recoleccion')}
               className="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-3 px-8 rounded-xl hover:from-green-600 hover:to-emerald-700 transform hover:scale-105 transition-all duration-300 shadow-lg"

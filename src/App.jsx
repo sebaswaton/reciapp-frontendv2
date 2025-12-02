@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Solicitudes from "./pages/Solicitudes";
@@ -9,6 +10,7 @@ import SolicitarRecoleccion from "./components/SolicitarRecoleccion";
 import RecicladorDashboard from "./components/RecicladorDashboard";
 import CiudadanoDashboard from "./components/CiudadanoDashboard";
 import { me } from "./api/auth";
+import Tienda from "./pages/Tienda";
 
 function PrivateRoute({ children, allowedRoles = [] }) {
   const token = localStorage.getItem("token");
@@ -28,6 +30,7 @@ function PrivateRoute({ children, allowedRoles = [] }) {
       }
       setLoading(false);
     };
+
     getUser();
   }, [token]);
 
@@ -43,7 +46,6 @@ function PrivateRoute({ children, allowedRoles = [] }) {
     return <Navigate to="/" replace />;
   }
 
-  // Verificar roles si se especificaron
   if (allowedRoles.length > 0 && !allowedRoles.includes(user.rol)) {
     return <Navigate to="/perfil" replace />;
   }
@@ -55,10 +57,11 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+
         {/* Ruta pública */}
         <Route path="/" element={<Login />} />
 
-        {/* Rutas para ADMIN */}
+        {/* ADMIN */}
         <Route
           path="/dashboard"
           element={
@@ -69,7 +72,7 @@ export default function App() {
           }
         />
 
-        {/* Rutas para RECICLADORES */}
+        {/* RECICLADOR */}
         <Route
           path="/reciclador"
           element={
@@ -89,7 +92,7 @@ export default function App() {
           }
         />
 
-        {/* Rutas para CIUDADANOS */}
+        {/* CIUDADANO */}
         <Route
           path="/ciudadano"
           element={
@@ -108,7 +111,18 @@ export default function App() {
           }
         />
 
-        {/* Ruta para todos los usuarios autenticados */}
+        {/* 🔥 NUEVA RUTA TIENDA */}
+        <Route
+          path="/tienda"
+          element={
+            <PrivateRoute allowedRoles={["ciudadano"]}>
+              <Navbar />
+              <Tienda />
+            </PrivateRoute>
+          }
+        />
+
+        {/* PERFIL (todos los roles autenticados) */}
         <Route
           path="/perfil"
           element={
@@ -119,8 +133,9 @@ export default function App() {
           }
         />
 
-        {/* Ruta 404 - Redireccionar al login */}
+        {/* 404 */}
         <Route path="*" element={<Navigate to="/" replace />} />
+
       </Routes>
     </BrowserRouter>
   );
