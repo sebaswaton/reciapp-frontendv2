@@ -138,6 +138,17 @@ export default function RecicladorDashboard() {
         if (Notification.permission === 'granted') {
           new Notification('♻️ ¡Nueva oportunidad!', { body: 'Hay material reciclable cerca.' });
         }
+      } else if (data.type === 'solicitud_cancelada') {
+        console.log('Solicitud cancelada:', data.solicitud_id);
+        // Remover de pendientes
+        setSolicitudesPendientes((prev) => prev.filter(s => s.id !== data.solicitud_id));
+        // Si es la activa, resetear
+        if (solicitudActiva?.id === data.solicitud_id) {
+          alert('El ciudadano ha cancelado la solicitud');
+          setSolicitudActiva(null);
+          setDisponible(true);
+          setRouteInfo(null);
+        }
       }
     };
 
@@ -149,7 +160,7 @@ export default function RecicladorDashboard() {
         ws.close();
       }
     };
-  }, [userId]);
+  }, [userId, solicitudActiva]);
 
   // --- 3. GEOLOCALIZACIÓN ---
   useEffect(() => {

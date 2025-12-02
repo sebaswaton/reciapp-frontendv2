@@ -158,6 +158,47 @@ export default function SolicitarRecoleccion() {
     }
   };
 
+  // 🔹 Cancelar solicitud
+  const handleCancelar = async () => {
+    if (!solicitudActiva) return;
+    
+    const confirmar = window.confirm('¿Estás seguro de que quieres cancelar esta solicitud?');
+    if (!confirmar) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/solicitudes/${solicitudActiva.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ estado: 'cancelada' }),
+      });
+
+      if (!response.ok) throw new Error('Error al cancelar solicitud');
+
+      // Notificar via WebSocket
+      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        socketRef.current.send(
+          JSON.stringify({
+            type: 'cancelar_solicitud',
+            solicitud_id: solicitudActiva.id,
+          })
+        );
+      }
+
+      alert('Solicitud cancelada correctamente');
+      setSolicitudActiva(null);
+      setRecicladorUbicacion(null);
+    } catch (err) {
+      console.error(err);
+      alert('Error al cancelar la solicitud');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // 🔹 Loader mientras se carga usuario o ubicación
   if (!userId || !ubicacion)
     return (
@@ -311,25 +352,53 @@ export default function SolicitarRecoleccion() {
                     </p>
                   </div>
                 )}
-                <button
-                  onClick={() => navigate('/ciudadano')}
-                  className="w-full mt-4 bg-gray-100 text-gray-700 font-semibold py-3 rounded-lg hover:bg-gray-200 transition-all flex items-center justify-center gap-2"
-                >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+
+                {/* Botones de acción */}
+                <div className="space-y-3">
+                  <button
+                    onClick={() => navigate('/ciudadano')}
+                    className="w-full bg-gray-100 text-gray-700 font-semibold py-3 rounded-lg hover:bg-gray-200 transition-all flex items-center justify-center gap-2"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                    />
-                  </svg>
-                  Volver al Dashboard
-                </button>
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                      />
+                    </svg>
+                    Volver al Dashboard
+                  </button>
+
+                  {/* Botón Cancelar - solo si está pendiente */}
+                  {solicitudActiva.estado === 'pendiente' && (
+                    <button
+                      onClick={handleCancelar}
+                      disabled={loading}
+                      className="w-full bg-red-500 text-white font-semibold py-3 rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                    >
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                      {loading ? 'Cancelando...' : 'Cancelar Solicitud'}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )}
