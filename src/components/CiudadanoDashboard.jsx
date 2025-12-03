@@ -50,7 +50,9 @@ export default function CiudadanoDashboard() {
 
         if (response.ok) {
           const data = await response.json();
-          setSolicitudes(data.filter((s) => s.ciudadano_id === userData.id));
+          console.log('📋 Solicitudes del ciudadano:', data);
+          // ✅ CORREGIDO: Usar usuario_id en lugar de ciudadano_id
+          setSolicitudes(data.filter((s) => s.usuario_id === userData.id));
         }
       } catch (error) {
         console.error('Error cargando datos:', error);

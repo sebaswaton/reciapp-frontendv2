@@ -214,18 +214,28 @@ export default function RecicladorDashboard() {
     const cargarSolicitudes = async () => {
       try {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/api/solicitudes`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          headers: { 
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          },
         });
+        
         if (response.ok) {
           const data = await response.json();
+          console.log('📋 Solicitudes cargadas:', data);
           setSolicitudesPendientes(data.filter((s) => s.estado === 'pendiente'));
+        } else {
+          console.error('❌ Error al cargar solicitudes:', response.status);
         }
       } catch (error) {
-        console.error('Error fetch:', error);
+        console.error('❌ Error fetch solicitudes:', error);
       }
     };
-    cargarSolicitudes();
-  }, []);
+    
+    if (userId) {
+      cargarSolicitudes();
+    }
+  }, [userId]);
 
   // --- FUNCIONES DE ACCIÓN ---
   const cerrarSesion = () => {
