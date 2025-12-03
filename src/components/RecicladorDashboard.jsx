@@ -32,8 +32,8 @@ const recyclerIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-// --- COMPONENTE DE RUTAS ---
-function RoutingMachine({ start, end, onRouteFound }) {
+// ✅ SOLO UNA VERSIÓN DEL COMPONENTE (con navegación)
+function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
   const map = useMap();
   const routingControlRef = useRef(null);
 
@@ -50,6 +50,7 @@ function RoutingMachine({ start, end, onRouteFound }) {
       showAlternatives: false,
       lineOptions: { styles: [{ color: '#10b981', weight: 6, opacity: 0.8 }] },
       createMarker: () => null,
+      show: false,
     }).addTo(map);
 
     routingControlRef.current.on('routesfound', (e) => {
@@ -60,12 +61,22 @@ function RoutingMachine({ start, end, onRouteFound }) {
           time: Math.round(route.summary.totalTime / 60),
         });
       }
+      
+      if (onInstructionsUpdate && route.instructions) {
+        const proximaInstruccion = route.instructions[0];
+        onInstructionsUpdate({
+          text: proximaInstruccion.text || 'Continúa recto',
+          distance: (proximaInstruccion.distance / 1000).toFixed(2),
+          type: proximaInstruccion.type || 'Straight',
+          allInstructions: route.instructions.slice(0, 3)
+        });
+      }
     });
 
     return () => {
       if (routingControlRef.current && map) map.removeControl(routingControlRef.current);
     };
-  }, [start, end, map, onRouteFound]);
+  }, [start, end, map, onRouteFound, onInstructionsUpdate]);
 
   return null;
 }

@@ -181,17 +181,22 @@ export default function SolicitarRecoleccion() {
       console.log('✅ Solicitud creada:', solicitud);
       setSolicitudActiva(solicitud);
 
-      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-        const mensaje = {
-          type: 'nueva_solicitud',
-          solicitud,
-        };
-        console.log('📤 Enviando mensaje WebSocket:', mensaje);
-        socketRef.current.send(JSON.stringify(mensaje));
-      } else {
-        console.warn('⚠️ WebSocket no está abierto');
-      }
-
+      // ✅ ESPERAR A QUE EL WEBSOCKET ESTÉ CONECTADO
+      const enviarSolicitud = () => {
+        if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+          const mensaje = {
+            type: 'nueva_solicitud',
+            solicitud,
+          };
+          console.log('📤 Enviando mensaje WebSocket:', mensaje);
+          socketRef.current.send(JSON.stringify(mensaje));
+        } else {
+          console.warn('⏳ WebSocket no está listo, reintentando en 500ms...');
+          setTimeout(enviarSolicitud, 500); // Reintentar después de 500ms
+        }
+      };
+      
+      enviarSolicitud();
       alert('¡Solicitud creada! Buscando recicladores cercanos...');
     } catch (err) {
       console.error(err);
