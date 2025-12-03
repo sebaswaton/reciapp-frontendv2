@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { me } from '../api/auth';
 
@@ -33,11 +33,24 @@ const recyclerIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
+// Componente para actualizar vista del mapa
+function UpdateMapView({ center }) {
+  const map = useMap();
+  useEffect(() => {
+    if (center) {
+      map.setView(center, map.getZoom());
+    }
+  }, [center, map]);
+  return null;
+}
+
 export default function SolicitarRecoleccion() {
   const navigate = useNavigate();
   const [userId, setUserId] = useState(null);
   const [ubicacion, setUbicacion] = useState(null);
   const [recicladorUbicacion, setRecicladorUbicacion] = useState(null);
+  const [rutaPolyline, setRutaPolyline] = useState([]); // NUEVO: Línea de ruta
+  const [distanciaEstimada, setDistanciaEstimada] = useState(null); // NUEVO
   const [solicitudActiva, setSolicitudActiva] = useState(null);
   const [formulario, setFormulario] = useState({
     tipo_material: 'plastico',
@@ -99,7 +112,23 @@ export default function SolicitarRecoleccion() {
         }));
         alert('¡Un reciclador aceptó tu solicitud! Está en camino 🚗');
       } else if (data.type === 'ubicacion_reciclador') {
-        setRecicladorUbicacion({ lat: data.lat, lng: data.lng });
+        const nuevaUbicacion = { lat: data.lat, lng: data.lng };
+        setRecicladorUbicacion(nuevaUbicacion);
+        
+        // ✅ ACTUALIZAR RUTA en tiempo real
+        if (ubicacion) {
+          setRutaPolyline([
+            [data.lat, data.lng],
+            [ubicacion.lat, ubicacion.lng]
+          ]);
+          
+          // Calcular distancia aproximada
+          const distancia = calcularDistancia(
+            data.lat, data.lng,
+            ubicacion.lat, ubicacion.lng
+          );
+          setDistanciaEstimada(distancia);
+        }
       }
     };
     ws.onerror = (err) => console.error('Error WS:', err);
@@ -110,7 +139,21 @@ export default function SolicitarRecoleccion() {
         ws.close();
       }
     };
-  }, [userId]);
+  }, [userId, ubicacion]);
+
+  // ✅ FUNCIÓN para calcular distancia (Haversine)
+  const calcularDistancia = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Radio de la Tierra en km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const distancia = R * c;
+    return distancia.toFixed(2);
+  };
 
   // 🔹 Crear solicitud
   const handleSolicitar = async () => {
@@ -226,16 +269,47 @@ export default function SolicitarRecoleccion() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution="&copy; OpenStreetMap contributors"
             />
+            
+            {/* ✅ Actualizar vista cuando cambia ubicación del reciclador */}
+            {recicladorUbicacion && solicitudActiva?.estado === 'aceptada' && (
+              <UpdateMapView center={[recicladorUbicacion.lat, recicladorUbicacion.lng]} />
+            )}
+            
+            {/* Mi ubicación */}
             <Marker position={[ubicacion.lat, ubicacion.lng]} icon={userIcon}>
               <Popup>Tu ubicación 📍</Popup>
             </Marker>
+            
+            {/* Ubicación del reciclador */}
             {recicladorUbicacion && (
-              <Marker
-                position={[recicladorUbicacion.lat, recicladorUbicacion.lng]}
-                icon={recyclerIcon}
-              >
-                <Popup>Reciclador en camino 🚗</Popup>
-              </Marker>
+              <>
+                <Marker
+                  position={[recicladorUbicacion.lat, recicladorUbicacion.lng]}
+                  icon={recyclerIcon}
+                >
+                  <Popup>
+                    <div className="text-center">
+                      <p className="font-bold text-green-700">🚗 Reciclador</p>
+                      {distanciaEstimada && (
+                        <p className="text-sm text-gray-600">
+                          A {distanciaEstimada} km de ti
+                        </p>
+                      )}
+                    </div>
+                  </Popup>
+                </Marker>
+                
+                {/* ✅ LÍNEA DE RUTA en tiempo real */}
+                {rutaPolyline.length > 0 && (
+                  <Polyline
+                    positions={rutaPolyline}
+                    color="#10b981"
+                    weight={4}
+                    opacity={0.7}
+                    dashArray="10, 10"
+                  />
+                )}
+              </>
             )}
           </MapContainer>
         </div>
@@ -335,21 +409,37 @@ export default function SolicitarRecoleccion() {
                     </svg>
                   </div>
                 </div>
+                
                 <h3 className="text-xl font-bold text-green-700 mb-2">
                   {solicitudActiva.estado === 'pendiente'
                     ? 'Buscando reciclador...'
                     : '¡Reciclador en camino!'}
                 </h3>
+                
                 <p className="text-gray-600 mb-4">
                   {solicitudActiva.estado === 'pendiente'
                     ? 'Estamos notificando a los recicladores cercanos'
                     : 'El reciclador está llegando a tu ubicación'}
                 </p>
-                {recicladorUbicacion && (
-                  <div className="bg-green-50 rounded-lg p-3 mb-4">
-                    <p className="text-sm text-green-700">
-                      📍 Ubicación del reciclador actualizada
-                    </p>
+                
+                {/* ✅ INFORMACIÓN DE TRACKING */}
+                {recicladorUbicacion && distanciaEstimada && (
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 mb-4 border-2 border-green-200">
+                    <div className="flex items-center justify-center gap-4">
+                      <div className="text-center">
+                        <p className="text-3xl font-bold text-green-600">{distanciaEstimada}</p>
+                        <p className="text-xs text-gray-500 uppercase">km de distancia</p>
+                      </div>
+                      <div className="w-px h-12 bg-green-300"></div>
+                      <div className="text-center">
+                        <p className="text-3xl font-bold text-green-600">~{Math.ceil(parseFloat(distanciaEstimada) * 3)}</p>
+                        <p className="text-xs text-gray-500 uppercase">min aprox</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center justify-center gap-2 text-green-700">
+                      <div className="animate-ping h-2 w-2 bg-green-500 rounded-full"></div>
+                      <p className="text-sm font-semibold">Ubicación actualizada en tiempo real</p>
+                    </div>
                   </div>
                 )}
 

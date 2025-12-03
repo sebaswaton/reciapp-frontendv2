@@ -175,7 +175,7 @@ export default function RecicladorDashboard() {
       (err) => console.error(err)
     );
 
-    // Watch Position
+    // Watch Position - Enviar ubicación cada vez que cambia
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
         const nuevaUbicacion = {
@@ -184,23 +184,30 @@ export default function RecicladorDashboard() {
         };
         setMiUbicacion(nuevaUbicacion);
 
-        if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN && !disponible) {
+        // ✅ ENVIAR UBICACIÓN EN TIEMPO REAL cuando hay solicitud activa
+        if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN && solicitudActiva) {
           socketRef.current.send(JSON.stringify({
             type: 'ubicacion_reciclador',
             lat: nuevaUbicacion.lat,
             lng: nuevaUbicacion.lng,
-            solicitud_id: solicitudActiva?.id,
+            solicitud_id: solicitudActiva.id,
+            reciclador_id: userId,
           }));
+          console.log('📍 Ubicación enviada:', nuevaUbicacion);
         }
       },
       (error) => console.error('Error GPS:', error),
-      { enableHighAccuracy: true }
+      { 
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0
+      }
     );
 
     return () => {
       if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current);
     };
-  }, [disponible, solicitudActiva]);
+  }, [solicitudActiva, userId]);
 
   // --- 4. CARGA INICIAL ---
   useEffect(() => {
