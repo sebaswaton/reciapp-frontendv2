@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet-routing-machine';
+import 'lrm-graphhopper'; // ✅ GraphHopper (A*)
 import { me } from '../api/auth';
 import { 
   MapPin, 
@@ -32,7 +33,7 @@ const recyclerIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-// ✅ SOLO UNA VERSIÓN DEL COMPONENTE (con navegación)
+// ✅ COMPONENTE DE RUTAS CON A* (usando GraphHopper)
 function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
   const map = useMap();
   const routingControlRef = useRef(null);
@@ -41,8 +42,22 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
     if (!start || !end || !map) return;
     if (routingControlRef.current) map.removeControl(routingControlRef.current);
 
+    // ✅ USAR GRAPHHOPPER (A* optimizado) en lugar de OSRM
     routingControlRef.current = L.Routing.control({
       waypoints: [L.latLng(start[0], start[1]), L.latLng(end[0], end[1])],
+      
+      // ✅ GraphHopper usa A* con optimizaciones para encontrar la ruta más rápida
+      router: L.Routing.graphHopper('TU_API_KEY_GRAPHHOPPER', {
+        urlParameters: {
+          vehicle: 'car',
+          weighting: 'fastest', // Ruta más rápida (A* optimizado)
+          algorithm: 'astar',    // Forzar A*
+          ch: {
+            disable: false // Usar Contraction Hierarchies para mayor velocidad
+          }
+        }
+      }),
+      
       routeWhileDragging: false,
       addWaypoints: false,
       draggableWaypoints: false,
@@ -50,7 +65,7 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
       showAlternatives: false,
       lineOptions: { styles: [{ color: '#10b981', weight: 6, opacity: 0.8 }] },
       createMarker: () => null,
-      show: false,
+      show: false, // Ocultar panel por defecto
     }).addTo(map);
 
     routingControlRef.current.on('routesfound', (e) => {
@@ -62,6 +77,7 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
         });
       }
       
+      // ✅ ENVIAR INSTRUCCIONES DE NAVEGACIÓN
       if (onInstructionsUpdate && route.instructions) {
         const proximaInstruccion = route.instructions[0];
         onInstructionsUpdate({
@@ -102,6 +118,7 @@ export default function RecicladorDashboard() {
   
   const [disponible, setDisponible] = useState(true);
   const [routeInfo, setRouteInfo] = useState(null);
+  const [navigationInstructions, setNavigationInstructions] = useState(null); // ✅ NUEVO
   
   // UI States
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -173,11 +190,10 @@ export default function RecicladorDashboard() {
     };
   }, [userId, solicitudActiva]);
 
-  // --- 3. GEOLOCALIZACIÓN ---
+  // --- 3. GEOLOCALIZACIÓN CON ACTUALIZACIÓN DE RUTA EN TIEMPO REAL ---
   useEffect(() => {
     if (!navigator.geolocation) return;
     
-    // Posición inicial
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
@@ -186,7 +202,6 @@ export default function RecicladorDashboard() {
       (err) => console.error(err)
     );
 
-    // Watch Position - Enviar ubicación cada vez que cambia
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
         const nuevaUbicacion = {
@@ -195,7 +210,23 @@ export default function RecicladorDashboard() {
         };
         setMiUbicacion(nuevaUbicacion);
 
-        // ✅ ENVIAR UBICACIÓN EN TIEMPO REAL cuando hay solicitud activa
+        // ✅ ACTUALIZAR DISTANCIA Y TIEMPO en tiempo real
+        if (solicitudActiva && routeInfo) {
+          const distanciaRestante = calcularDistancia(
+            nuevaUbicacion.lat, 
+            nuevaUbicacion.lng,
+            solicitudActiva.latitud,
+            solicitudActiva.longitud
+          );
+          
+          setRouteInfo(prev => ({
+            ...prev,
+            distance: distanciaRestante,
+            time: Math.ceil(parseFloat(distanciaRestante) * 3)
+          }));
+        }
+
+        // Enviar ubicación via WebSocket
         if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN && solicitudActiva) {
           socketRef.current.send(JSON.stringify({
             type: 'ubicacion_reciclador',
@@ -218,7 +249,20 @@ export default function RecicladorDashboard() {
     return () => {
       if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current);
     };
-  }, [solicitudActiva, userId]);
+  }, [solicitudActiva, userId, routeInfo]);
+
+  // ✅ FUNCIÓN para calcular distancia
+  const calcularDistancia = (lat1, lon1, lat2, lon2) => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return (R * c).toFixed(2);
+  };
 
   // --- 4. CARGA INICIAL ---
   useEffect(() => {
@@ -341,10 +385,8 @@ export default function RecicladorDashboard() {
             attribution='&copy; CARTO'
           />
           
-          {/* ✅ CORREGIDO: Usamos MapRecenter sin guion */}
           {centrarMapaTrigger && <MapRecenter center={centrarMapaTrigger} />}
 
-          {/* MI UBICACIÓN */}
           <Marker position={[miUbicacion.lat, miUbicacion.lng]} icon={recyclerIcon}>
             <Popup className="custom-popup">
               <div className="text-center">
@@ -353,7 +395,6 @@ export default function RecicladorDashboard() {
             </Popup>
           </Marker>
 
-          {/* SOLICITUDES (MARKERS) */}
           {!solicitudActiva && solicitudesFiltradas.map((solicitud) => (
             <Marker key={solicitud.id} position={[solicitud.latitud, solicitud.longitud]} icon={userIcon}>
               <Popup>
@@ -383,21 +424,62 @@ export default function RecicladorDashboard() {
             </Marker>
           ))}
 
-          {/* RUTA ACTIVA */}
+          {/* ✅ RUTA ACTIVA CON NAVEGACIÓN */}
           {solicitudActiva && (
             <>
-              <Marker position={[solicitudActiva.latitud, solicitudActiva.longitud]} icon={userIcon} />
+              <Marker position={[solicitudActiva.latitud, solicitudActiva.longitud]} icon={userIcon}>
+                <Popup>
+                  <div className="text-center">
+                    <p className="font-bold text-blue-700">🎯 Destino</p>
+                    <p className="text-xs text-gray-600">{solicitudActiva.tipo_material}</p>
+                  </div>
+                </Popup>
+              </Marker>
               <RoutingMachine
                 start={[miUbicacion.lat, miUbicacion.lng]}
                 end={[solicitudActiva.latitud, solicitudActiva.longitud]}
                 onRouteFound={setRouteInfo}
+                onInstructionsUpdate={setNavigationInstructions}
               />
             </>
           )}
         </MapContainer>
       </div>
 
-      {/* ================= UI FLOTANTE ================= */}
+      {/* ✅ PANEL DE NAVEGACIÓN GPS EN VIVO (FLOTANTE) */}
+      {solicitudActiva && navigationInstructions && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[999] bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-4 max-w-md w-11/12 border-2 border-green-500">
+          <div className="flex items-center gap-4">
+            <div className="bg-green-100 p-3 rounded-full">
+              <Navigation size={28} className="text-green-600" />
+            </div>
+            
+            <div className="flex-1">
+              <p className="text-2xl font-bold text-gray-800">{navigationInstructions.distance} km</p>
+              <p className="text-sm text-gray-600">{navigationInstructions.text}</p>
+            </div>
+            
+            <div className="text-right">
+              <p className="text-3xl font-bold text-green-600">{routeInfo?.time}</p>
+              <p className="text-xs text-gray-500">min</p>
+            </div>
+          </div>
+          
+          {navigationInstructions.allInstructions && navigationInstructions.allInstructions.length > 1 && (
+            <div className="mt-3 pt-3 border-t border-gray-200">
+              <p className="text-xs text-gray-500 font-semibold mb-2">Próximos pasos:</p>
+              {navigationInstructions.allInstructions.slice(1, 3).map((instr, idx) => (
+                <div key={idx} className="flex items-center gap-2 text-xs text-gray-600 mb-1">
+                  <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+                  <span>{instr.text} ({(instr.distance / 1000).toFixed(1)} km)</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ================= UI FLOTANTE (SIDEBAR) ================= */}
       
       {/* 1. Botón Menu Móvil */}
       <button 
@@ -454,30 +536,40 @@ export default function RecicladorDashboard() {
           {/* Cuerpo del Sidebar */}
           <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
             
-            {/* MODO MISIÓN */}
+            {/* MODO MISIÓN CON NAVEGACIÓN GPS */}
             {solicitudActiva ? (
               <div className="bg-white border-2 border-green-500 rounded-2xl p-5 shadow-lg relative overflow-hidden">
-                <div className="absolute top-0 right-0 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">
-                  EN CURSO
+                <div className="absolute top-0 right-0 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl animate-pulse">
+                  🚗 NAVEGANDO
                 </div>
                 
                 <h3 className="text-gray-500 text-xs font-bold uppercase mb-2 flex items-center gap-2">
-                  <Navigation size={14}/> Destino
+                  <Navigation size={14}/> En camino a destino
                 </h3>
                 <h2 className="text-2xl font-bold text-gray-800 mb-1">{solicitudActiva.tipo_material}</h2>
                 <p className="text-gray-500 mb-4">{solicitudActiva.cantidad} kg aprox.</p>
                 
+                {/* ✅ INFO DE RUTA EN TIEMPO REAL */}
                 {routeInfo && (
-                  <div className="flex items-center gap-4 mb-6 bg-green-50 p-3 rounded-lg">
-                    <div>
-                      <p className="text-xs text-gray-500">Distancia</p>
-                      <p className="font-bold text-green-700">{routeInfo.distance} km</p>
+                  <div className="mb-6">
+                    <div className="flex items-center gap-4 bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border-2 border-green-200">
+                      <div className="text-center flex-1">
+                        <p className="text-3xl font-bold text-green-700">{routeInfo.distance}</p>
+                        <p className="text-xs text-gray-500 uppercase">km restantes</p>
+                      </div>
+                      <div className="w-px h-12 bg-green-300"></div>
+                      <div className="text-center flex-1">
+                        <p className="text-3xl font-bold text-green-700">{routeInfo.time}</p>
+                        <p className="text-xs text-gray-500 uppercase">minutos</p>
+                      </div>
                     </div>
-                    <div className="w-px h-8 bg-green-200"></div>
-                    <div>
-                      <p className="text-xs text-gray-500">Tiempo</p>
-                      <p className="font-bold text-green-700">{routeInfo.time} min</p>
-                    </div>
+                    
+                    {navigationInstructions && (
+                      <div className="mt-3 bg-blue-50 p-3 rounded-lg border border-blue-200">
+                        <p className="text-xs text-blue-600 font-semibold mb-1">Próxima acción:</p>
+                        <p className="text-sm text-gray-800 font-medium">{navigationInstructions.text}</p>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -491,7 +583,6 @@ export default function RecicladorDashboard() {
             ) : (
               // MODO LISTA
               <>
-                {/* Filtros */}
                 <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
                    {['Todos', 'Plastico', 'Carton', 'Vidrio', 'Metal'].map(filtro => (
                      <button
@@ -584,6 +675,9 @@ export default function RecicladorDashboard() {
         </div>
       </div>
 
-    </div>
+
+
+
+}  );    </div>    </div>
   );
 }
