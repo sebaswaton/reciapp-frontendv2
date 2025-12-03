@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet-routing-machine';
-import 'lrm-graphhopper'; // ✅ GraphHopper (A*)
 import { me } from '../api/auth';
 import { 
   MapPin, 
@@ -33,7 +32,7 @@ const recyclerIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-// ✅ COMPONENTE DE RUTAS CON A* (usando GraphHopper)
+// ✅ SOLO UNA VERSIÓN DEL COMPONENTE (con navegación)
 function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
   const map = useMap();
   const routingControlRef = useRef(null);
@@ -42,22 +41,8 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
     if (!start || !end || !map) return;
     if (routingControlRef.current) map.removeControl(routingControlRef.current);
 
-    // ✅ USAR GRAPHHOPPER (A* optimizado) en lugar de OSRM
     routingControlRef.current = L.Routing.control({
       waypoints: [L.latLng(start[0], start[1]), L.latLng(end[0], end[1])],
-      
-      // ✅ GraphHopper usa A* con optimizaciones para encontrar la ruta más rápida
-      router: L.Routing.graphHopper('TU_API_KEY_GRAPHHOPPER', {
-        urlParameters: {
-          vehicle: 'car',
-          weighting: 'fastest', // Ruta más rápida (A* optimizado)
-          algorithm: 'astar',    // Forzar A*
-          ch: {
-            disable: false // Usar Contraction Hierarchies para mayor velocidad
-          }
-        }
-      }),
-      
       routeWhileDragging: false,
       addWaypoints: false,
       draggableWaypoints: false,
@@ -675,9 +660,6 @@ export default function RecicladorDashboard() {
         </div>
       </div>
 
-
-
-
-}  );    </div>    </div>
+    </div>
   );
 }
