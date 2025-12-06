@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import 'leaflet-routing-machine';
 import { me } from '../api/auth';
 import { 
   MapPin, 
@@ -31,93 +32,75 @@ const recyclerIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-// ✅ COMPONENTE SIMPLIFICADO SIN OSRM (usa cálculo directo)
+// ✅ COMPONENTE CON INSTRUCCIONES DE NAVEGACIÓN (sin resaltado extra)
 function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
   const map = useMap();
   const routingControlRef = useRef(null);
 
   useEffect(() => {
     if (!start || !end || !map) return;
-    
-    // ✅ Dibujar línea simple sin routing
-    if (routingControlRef.current) {
-      map.removeLayer(routingControlRef.current);
-    }
+    if (routingControlRef.current) map.removeControl(routingControlRef.current);
 
-    // Crear polyline simple
-    const polyline = L.polyline([start, end], {
-      color: '#10b981',
-      weight: 6,
-      opacity: 0.8,
-      lineCap: 'round',
-      lineJoin: 'round'
+    routingControlRef.current = L.Routing.control({
+      waypoints: [L.latLng(start[0], start[1]), L.latLng(end[0], end[1])],
+      routeWhileDragging: false,
+      addWaypoints: false,
+      draggableWaypoints: false,
+      fitSelectedRoutes: true,
+      showAlternatives: false,
+      
+      // ✅ RUTA SIMPLE (sin capas múltiples)
+      lineOptions: { 
+        styles: [{ 
+          color: '#10b981', 
+          weight: 6, 
+          opacity: 0.8,
+          lineCap: 'round',
+          lineJoin: 'round'
+        }] 
+      },
+      
+      createMarker: () => null,
+      show: false,
     }).addTo(map);
-    
-    routingControlRef.current = polyline;
 
-    // ✅ CALCULAR DISTANCIA Y DIRECCIÓN MANUALMENTE
-    const calcularRuta = () => {
-      const R = 6371; // Radio de la Tierra en km
-      const lat1 = start[0] * Math.PI / 180;
-      const lat2 = end[0] * Math.PI / 180;
-      const dLat = (end[0] - start[0]) * Math.PI / 180;
-      const dLon = (end[1] - start[1]) * Math.PI / 180;
-
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1) * Math.cos(lat2) *
-                Math.sin(dLon/2) * Math.sin(dLon/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      const distance = R * c;
-
-      // Calcular dirección (bearing)
-      const y = Math.sin(dLon) * Math.cos(lat2);
-      const x = Math.cos(lat1) * Math.sin(lat2) -
-                Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
-      const bearing = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
-
-      // Determinar dirección cardinal
-      let direccion = '';
-      if (bearing >= 337.5 || bearing < 22.5) direccion = 'Norte';
-      else if (bearing >= 22.5 && bearing < 67.5) direccion = 'Noreste';
-      else if (bearing >= 67.5 && bearing < 112.5) direccion = 'Este';
-      else if (bearing >= 112.5 && bearing < 157.5) direccion = 'Sureste';
-      else if (bearing >= 157.5 && bearing < 202.5) direccion = 'Sur';
-      else if (bearing >= 202.5 && bearing < 247.5) direccion = 'Suroeste';
-      else if (bearing >= 247.5 && bearing < 292.5) direccion = 'Oeste';
-      else direccion = 'Noroeste';
-
-      const time = Math.ceil(distance * 3); // 3 min por km aprox
-
+    routingControlRef.current.on('routesfound', (e) => {
+      const route = e.routes[0];
+      
+      console.log('🗺️ Ruta encontrada'); // Debug
+      
       if (onRouteFound) {
         onRouteFound({
-          distance: distance.toFixed(1),
-          time: time,
+          distance: (route.summary.totalDistance / 1000).toFixed(1),
+          time: Math.round(route.summary.totalTime / 60),
         });
       }
-
-      if (onInstructionsUpdate) {
-        onInstructionsUpdate({
-          text: `Dirígete hacia el ${direccion}`,
-          distance: distance.toFixed(2),
-          type: 'Straight',
-          allInstructions: [
-            { text: `Dirígete hacia el ${direccion}`, distance: distance * 1000, type: 'Straight' },
-            { text: 'Continúa recto', distance: 0, type: 'Continue' },
-            { text: 'Has llegado a tu destino', distance: 0, type: 'DestinationReached' }
-          ]
-        });
+      
+      // ✅ ENVIAR INSTRUCCIONES DE NAVEGACIÓN
+      if (onInstructionsUpdate && route.instructions && route.instructions.length > 0) {
+        console.log('📋 Total instrucciones:', route.instructions.length); // Debug
+        
+        const proximaInstruccion = route.instructions[0];
+        const instruccionesData = {
+          text: proximaInstruccion.text || 'Continúa recto',
+          distance: (proximaInstruccion.distance / 1000).toFixed(2),
+          type: proximaInstruccion.type || 'Straight',
+          allInstructions: route.instructions.slice(0, 3).map(instr => ({
+            text: instr.text || 'Continúa',
+            distance: instr.distance,
+            type: instr.type || 'Straight'
+          }))
+        };
+        
+        console.log('✅ Instrucciones enviadas:', instruccionesData); // Debug
+        onInstructionsUpdate(instruccionesData);
+      } else {
+        console.warn('⚠️ No se encontraron instrucciones en la ruta'); // Debug
       }
-    };
-
-    calcularRuta();
-
-    // Ajustar vista del mapa
-    map.fitBounds([start, end], { padding: [50, 50] });
+    });
 
     return () => {
-      if (routingControlRef.current && map) {
-        map.removeLayer(routingControlRef.current);
-      }
+      if (routingControlRef.current && map) map.removeControl(routingControlRef.current);
     };
   }, [start, end, map, onRouteFound, onInstructionsUpdate]);
 

@@ -6,7 +6,7 @@
 :root { color-scheme: light; }
 body { @apply bg-gray-50 text-gray-900; }
 
-/* ✅ Solo estilos básicos para el mapa */
-.leaflet-container {
-  font-family: inherit;
+/* ✅ Solo ocultar el panel de leaflet routing */
+.leaflet-routing-container {
+  display: none !important;
 }
