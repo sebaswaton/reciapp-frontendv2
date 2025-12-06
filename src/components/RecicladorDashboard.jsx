@@ -32,7 +32,7 @@ const recyclerIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-// ✅ SOLO UNA VERSIÓN DEL COMPONENTE (con navegación)
+// ✅ COMPONENTE CON INSTRUCCIONES DE NAVEGACIÓN (sin resaltado extra)
 function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
   const map = useMap();
   const routingControlRef = useRef(null);
@@ -48,13 +48,27 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
       draggableWaypoints: false,
       fitSelectedRoutes: true,
       showAlternatives: false,
-      lineOptions: { styles: [{ color: '#10b981', weight: 6, opacity: 0.8 }] },
+      
+      // ✅ RUTA SIMPLE (sin capas múltiples)
+      lineOptions: { 
+        styles: [{ 
+          color: '#10b981', 
+          weight: 6, 
+          opacity: 0.8,
+          lineCap: 'round',
+          lineJoin: 'round'
+        }] 
+      },
+      
       createMarker: () => null,
-      show: false, // Ocultar panel por defecto
+      show: false,
     }).addTo(map);
 
     routingControlRef.current.on('routesfound', (e) => {
       const route = e.routes[0];
+      
+      console.log('🗺️ Ruta encontrada'); // Debug
+      
       if (onRouteFound) {
         onRouteFound({
           distance: (route.summary.totalDistance / 1000).toFixed(1),
@@ -63,14 +77,25 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
       }
       
       // ✅ ENVIAR INSTRUCCIONES DE NAVEGACIÓN
-      if (onInstructionsUpdate && route.instructions) {
+      if (onInstructionsUpdate && route.instructions && route.instructions.length > 0) {
+        console.log('📋 Total instrucciones:', route.instructions.length); // Debug
+        
         const proximaInstruccion = route.instructions[0];
-        onInstructionsUpdate({
+        const instruccionesData = {
           text: proximaInstruccion.text || 'Continúa recto',
           distance: (proximaInstruccion.distance / 1000).toFixed(2),
           type: proximaInstruccion.type || 'Straight',
-          allInstructions: route.instructions.slice(0, 3)
-        });
+          allInstructions: route.instructions.slice(0, 3).map(instr => ({
+            text: instr.text || 'Continúa',
+            distance: instr.distance,
+            type: instr.type || 'Straight'
+          }))
+        };
+        
+        console.log('✅ Instrucciones enviadas:', instruccionesData); // Debug
+        onInstructionsUpdate(instruccionesData);
+      } else {
+        console.warn('⚠️ No se encontraron instrucciones en la ruta'); // Debug
       }
     });
 
