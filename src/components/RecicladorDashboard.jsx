@@ -32,7 +32,7 @@ const recyclerIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-// ✅ COMPONENTE CON RUTA RESALTADA ESTILO GOOGLE MAPS
+// ✅ SOLO UNA VERSIÓN DEL COMPONENTE (con navegación)
 function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
   const map = useMap();
   const routingControlRef = useRef(null);
@@ -48,25 +48,9 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
       draggableWaypoints: false,
       fitSelectedRoutes: true,
       showAlternatives: false,
-      
-      // ✅ RESALTAR RUTA CON MÚLTIPLES CAPAS (estilo Google Maps)
-      lineOptions: {
-        styles: [
-          // Capa 1: Sombra exterior (más gruesa, oscura)
-          { color: '#000000', opacity: 0.15, weight: 12, lineCap: 'round', lineJoin: 'round' },
-          // Capa 2: Borde oscuro
-          { color: '#047857', opacity: 0.8, weight: 10, lineCap: 'round', lineJoin: 'round' },
-          // Capa 3: Ruta principal verde brillante
-          { color: '#10b981', opacity: 1, weight: 7, lineCap: 'round', lineJoin: 'round' },
-          // Capa 4: Línea de brillo superior
-          { color: '#34d399', opacity: 0.7, weight: 4, lineCap: 'round', lineJoin: 'round' }
-        ],
-        extendToWaypoints: true,
-        missingRouteTolerance: 0
-      },
-      
+      lineOptions: { styles: [{ color: '#10b981', weight: 6, opacity: 0.8 }] },
       createMarker: () => null,
-      show: false,
+      show: false, // Ocultar panel por defecto
     }).addTo(map);
 
     routingControlRef.current.on('routesfound', (e) => {
