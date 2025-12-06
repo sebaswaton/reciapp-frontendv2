@@ -31,22 +31,30 @@ const recyclerIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-// ✅ COMPONENTE CON MAPBOX DIRECTIONS API (con validación mejorada)
+// ✅ COMPONENTE CON MAPBOX DIRECTIONS API (con limpieza mejorada)
 function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
   const map = useMap();
   const polylineRef = useRef(null);
 
   useEffect(() => {
-    if (!start || !end || !map) return;
+    if (!start || !end || !map) {
+      // ✅ LIMPIAR SI NO HAY COORDENADAS
+      if (polylineRef.current && map) {
+        map.removeLayer(polylineRef.current);
+        polylineRef.current = null;
+      }
+      return;
+    }
     
+    // Limpiar ruta anterior
     if (polylineRef.current) {
       map.removeLayer(polylineRef.current);
+      polylineRef.current = null;
     }
 
     const fetchRoute = async () => {
       const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
       
-      // ✅ VALIDAR TOKEN
       if (!mapboxToken || mapboxToken === 'pk.tu_token_aqui') {
         console.error('❌ Token de Mapbox no configurado');
         alert('Por favor configura tu token de Mapbox en el archivo .env\n\nVITE_MAPBOX_TOKEN=pk.tu_token_real');
@@ -75,7 +83,6 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
           
           const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
           
-          // ✅ DIBUJAR RUTA CON MÚLTIPLES CAPAS
           const polylineLayers = [
             L.polyline(coordinates, {
               color: '#000000',
@@ -149,9 +156,12 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
     
     fetchRoute();
 
+    // ✅ CLEANUP: Limpiar cuando se desmonta el componente
     return () => {
       if (polylineRef.current && map) {
+        console.log('🧹 Limpiando ruta del mapa');
         map.removeLayer(polylineRef.current);
+        polylineRef.current = null;
       }
     };
   }, [start, end, map, onRouteFound, onInstructionsUpdate]);
@@ -423,12 +433,16 @@ export default function RecicladorDashboard() {
 
       alert('¡Excelente trabajo! +50 Puntos 🌟');
       
-      setSolicitudActiva(null);
-      setDisponible(true);
-      setRouteInfo(null);
+      // ✅ LIMPIAR EN EL ORDEN CORRECTO
+      setSolicitudActiva(null); // Esto hará que RoutingMachine se desmonte
       setNavigationInstructions(null);
+      setRouteInfo(null);
+      setDisponible(true);
+      
+      console.log('✅ Servicio completado, estado limpiado');
     } catch (error) {
       console.error(error);
+      alert('Error al completar el servicio');
     }
   };
 
@@ -499,7 +513,7 @@ export default function RecicladorDashboard() {
           ))}
 
           {/* ✅ RUTA ACTIVA CON NAVEGACIÓN */}
-          {solicitudActiva && (
+          {solicitudActiva && miUbicacion && (
             <>
               <Marker position={[solicitudActiva.latitud, solicitudActiva.longitud]} icon={userIcon}>
                 <Popup>
@@ -510,6 +524,7 @@ export default function RecicladorDashboard() {
                 </Popup>
               </Marker>
               <RoutingMachine
+                key={`route-${solicitudActiva.id}`}
                 start={[miUbicacion.lat, miUbicacion.lng]}
                 end={[solicitudActiva.latitud, solicitudActiva.longitud]}
                 onRouteFound={setRouteInfo}
