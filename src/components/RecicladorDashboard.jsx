@@ -190,8 +190,9 @@ export default function RecicladorDashboard() {
   
   const [disponible, setDisponible] = useState(true);
   const [routeInfo, setRouteInfo] = useState(null);
-  const [navigationInstructions, setNavigationInstructions] = useState(null); // ✅ NUEVO
-  
+  const [navigationInstructions, setNavigationInstructions] = useState(null);
+  const mapRef = useRef(null); // ✅ NUEVO: Referencia al mapa
+
   // UI States
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [filtroMaterial, setFiltroMaterial] = useState('Todos');
@@ -431,15 +432,24 @@ export default function RecicladorDashboard() {
         );
       }
 
+      // ✅ LIMPIAR MAPA MANUALMENTE (forzar limpieza)
+      if (mapRef.current) {
+        mapRef.current.eachLayer((layer) => {
+          if (layer instanceof L.LayerGroup || layer instanceof L.Polyline) {
+            mapRef.current.removeLayer(layer);
+          }
+        });
+      }
+
       alert('¡Excelente trabajo! +50 Puntos 🌟');
       
-      // ✅ LIMPIAR EN EL ORDEN CORRECTO
-      setSolicitudActiva(null); // Esto hará que RoutingMachine se desmonte
+      // ✅ LIMPIAR ESTADO (orden importante)
       setNavigationInstructions(null);
       setRouteInfo(null);
+      setSolicitudActiva(null);
       setDisponible(true);
       
-      console.log('✅ Servicio completado, estado limpiado');
+      console.log('✅ Servicio completado, mapa limpiado');
     } catch (error) {
       console.error(error);
       alert('Error al completar el servicio');
@@ -467,7 +477,14 @@ export default function RecicladorDashboard() {
       
       {/* ================= MAPA ================= */}
       <div className="absolute inset-0 z-0">
-        <MapContainer center={[miUbicacion.lat, miUbicacion.lng]} zoom={15} className="h-full w-full" zoomControl={false}>
+        <MapContainer 
+          center={[miUbicacion.lat, miUbicacion.lng]} 
+          zoom={15} 
+          className="h-full w-full" 
+          zoomControl={false}
+          ref={mapRef}
+          whenCreated={(mapInstance) => { mapRef.current = mapInstance; }}
+        >
           <TileLayer
             url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
             attribution='&copy; CARTO'
@@ -512,8 +529,8 @@ export default function RecicladorDashboard() {
             </Marker>
           ))}
 
-          {/* ✅ RUTA ACTIVA CON NAVEGACIÓN */}
-          {solicitudActiva && miUbicacion && (
+          {/* ✅ RUTA ACTIVA - Solo renderizar si solicitudActiva existe */}
+          {solicitudActiva && miUbicacion && routeInfo && (
             <>
               <Marker position={[solicitudActiva.latitud, solicitudActiva.longitud]} icon={userIcon}>
                 <Popup>
@@ -524,7 +541,7 @@ export default function RecicladorDashboard() {
                 </Popup>
               </Marker>
               <RoutingMachine
-                key={`route-${solicitudActiva.id}`}
+                key={`route-${solicitudActiva.id}-${routeInfo.distance}`}
                 start={[miUbicacion.lat, miUbicacion.lng]}
                 end={[solicitudActiva.latitud, solicitudActiva.longitud]}
                 onRouteFound={setRouteInfo}
