@@ -132,13 +132,24 @@ export default function SolicitarRecoleccion() {
     };
   }, [userId, ubicacion]);
 
-  // ✅ FUNCIÓN para obtener ruta de Mapbox
+  // ✅ FUNCIÓN para obtener ruta de Mapbox (con validación)
   const fetchMapboxRoute = async (origen, destino) => {
     const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
+    
+    if (!mapboxToken || mapboxToken === 'pk.tu_token_aqui') {
+      console.error('❌ Token de Mapbox no configurado');
+      return;
+    }
+    
     const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${origen.lng},${origen.lat};${destino.lng},${destino.lat}?geometries=geojson&access_token=${mapboxToken}`;
     
     try {
       const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}`);
+      }
+      
       const data = await response.json();
       
       if (data.routes && data.routes.length > 0) {

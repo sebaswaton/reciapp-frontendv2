@@ -31,7 +31,7 @@ const recyclerIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-// ✅ COMPONENTE CON MAPBOX DIRECTIONS API (estable y con instrucciones)
+// ✅ COMPONENTE CON MAPBOX DIRECTIONS API (con validación mejorada)
 function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
   const map = useMap();
   const polylineRef = useRef(null);
@@ -39,17 +39,33 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
   useEffect(() => {
     if (!start || !end || !map) return;
     
-    // Limpiar ruta anterior
     if (polylineRef.current) {
       map.removeLayer(polylineRef.current);
     }
 
     const fetchRoute = async () => {
       const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
+      
+      // ✅ VALIDAR TOKEN
+      if (!mapboxToken || mapboxToken === 'pk.tu_token_aqui') {
+        console.error('❌ Token de Mapbox no configurado');
+        alert('Por favor configura tu token de Mapbox en el archivo .env\n\nVITE_MAPBOX_TOKEN=pk.tu_token_real');
+        return;
+      }
+
       const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${start[1]},${start[0]};${end[1]},${end[0]}?steps=true&banner_instructions=true&geometries=geojson&access_token=${mapboxToken}`;
+      
+      console.log('📍 Calculando ruta...');
       
       try {
         const response = await fetch(url);
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('❌ Error de Mapbox:', errorData);
+          throw new Error(`Error ${response.status}: ${errorData.message || 'Error al calcular ruta'}`);
+        }
+        
         const data = await response.json();
         
         if (data.routes && data.routes.length > 0) {
@@ -57,12 +73,10 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
           
           console.log('🗺️ Ruta de Mapbox encontrada');
           
-          // Extraer coordenadas
           const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
           
-          // ✅ DIBUJAR RUTA CON MÚLTIPLES CAPAS (estilo Google Maps)
+          // ✅ DIBUJAR RUTA CON MÚLTIPLES CAPAS
           const polylineLayers = [
-            // Sombra
             L.polyline(coordinates, {
               color: '#000000',
               weight: 12,
@@ -70,7 +84,6 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
               lineCap: 'round',
               lineJoin: 'round'
             }),
-            // Borde
             L.polyline(coordinates, {
               color: '#047857',
               weight: 10,
@@ -78,7 +91,6 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
               lineCap: 'round',
               lineJoin: 'round'
             }),
-            // Principal
             L.polyline(coordinates, {
               color: '#10b981',
               weight: 7,
@@ -86,7 +98,6 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
               lineCap: 'round',
               lineJoin: 'round'
             }),
-            // Brillo
             L.polyline(coordinates, {
               color: '#34d399',
               weight: 4,
@@ -96,15 +107,12 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
             })
           ];
 
-          // Agregar todas las capas al mapa
           const layerGroup = L.layerGroup(polylineLayers).addTo(map);
           polylineRef.current = layerGroup;
           
-          // Ajustar vista
           const bounds = L.latLngBounds(coordinates);
           map.fitBounds(bounds, { padding: [50, 50] });
           
-          // ✅ INFORMACIÓN DE RUTA
           if (onRouteFound) {
             onRouteFound({
               distance: (route.distance / 1000).toFixed(1),
@@ -112,7 +120,6 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
             });
           }
           
-          // ✅ INSTRUCCIONES DE NAVEGACIÓN
           if (onInstructionsUpdate && route.legs && route.legs[0].steps) {
             const steps = route.legs[0].steps;
             console.log('📋 Total instrucciones:', steps.length);
@@ -131,10 +138,12 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
             
             console.log('✅ Instrucciones de Mapbox cargadas');
           }
+        } else {
+          throw new Error('No se encontró ninguna ruta');
         }
       } catch (error) {
         console.error('❌ Error obteniendo ruta de Mapbox:', error);
-        alert('Error al calcular la ruta. Verifica tu conexión.');
+        alert(`Error al calcular la ruta:\n${error.message}\n\nVerifica:\n1. Tu token de Mapbox en .env\n2. Tu conexión a internet\n3. Que las coordenadas sean válidas`);
       }
     };
     
