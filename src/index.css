@@ -10,3 +10,17 @@ body { @apply bg-gray-50 text-gray-900; }
 .leaflet-routing-container {
   display: none !important;
 }
+
+/* ✅ Animación para ruta estilo Google Maps */
+@keyframes route-pulse {
+  0%, 100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.leaflet-container {
+  font-family: inherit;
+}

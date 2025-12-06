@@ -49,8 +49,9 @@ export default function SolicitarRecoleccion() {
   const [userId, setUserId] = useState(null);
   const [ubicacion, setUbicacion] = useState(null);
   const [recicladorUbicacion, setRecicladorUbicacion] = useState(null);
-  const [rutaPolyline, setRutaPolyline] = useState([]); // NUEVO: Línea de ruta
-  const [distanciaEstimada, setDistanciaEstimada] = useState(null); // NUEVO
+  const [rutaPolyline, setRutaPolyline] = useState([]);
+  const [distanciaEstimada, setDistanciaEstimada] = useState(null);
+  const polylineLayersRef = useRef(null); // ✅ NUEVO
   const [solicitudActiva, setSolicitudActiva] = useState(null);
   const [formulario, setFormulario] = useState({
     tipo_material: 'plastico',
@@ -115,19 +116,9 @@ export default function SolicitarRecoleccion() {
         const nuevaUbicacion = { lat: data.lat, lng: data.lng };
         setRecicladorUbicacion(nuevaUbicacion);
         
-        // ✅ ACTUALIZAR RUTA en tiempo real
+        // ✅ OBTENER RUTA DE MAPBOX
         if (ubicacion) {
-          setRutaPolyline([
-            [data.lat, data.lng],
-            [ubicacion.lat, ubicacion.lng]
-          ]);
-          
-          // Calcular distancia aproximada
-          const distancia = calcularDistancia(
-            data.lat, data.lng,
-            ubicacion.lat, ubicacion.lng
-          );
-          setDistanciaEstimada(distancia);
+          fetchMapboxRoute(nuevaUbicacion, ubicacion);
         }
       }
     };
@@ -140,6 +131,31 @@ export default function SolicitarRecoleccion() {
       }
     };
   }, [userId, ubicacion]);
+
+  // ✅ FUNCIÓN para obtener ruta de Mapbox
+  const fetchMapboxRoute = async (origen, destino) => {
+    const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
+    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${origen.lng},${origen.lat};${destino.lng},${destino.lat}?geometries=geojson&access_token=${mapboxToken}`;
+    
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (data.routes && data.routes.length > 0) {
+        const route = data.routes[0];
+        const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+        
+        setRutaPolyline(coordinates);
+        
+        const distancia = (route.distance / 1000).toFixed(2);
+        setDistanciaEstimada(distancia);
+        
+        console.log('🗺️ Ruta actualizada desde Mapbox');
+      }
+    } catch (error) {
+      console.error('❌ Error obteniendo ruta:', error);
+    }
+  };
 
   // ✅ FUNCIÓN para calcular distancia (Haversine)
   const calcularDistancia = (lat1, lon1, lat2, lon2) => {
@@ -262,7 +278,6 @@ export default function SolicitarRecoleccion() {
 
   return (
     <div className="h-screen flex flex-col">
-      {/* Mapa con z-0 */}
       <div className="flex-1 relative">
         <div className="absolute inset-0 z-0">
           <MapContainer
@@ -275,17 +290,14 @@ export default function SolicitarRecoleccion() {
               attribution="&copy; OpenStreetMap contributors"
             />
             
-            {/* ✅ Actualizar vista cuando cambia ubicación del reciclador */}
             {recicladorUbicacion && solicitudActiva?.estado === 'aceptada' && (
               <UpdateMapView center={[recicladorUbicacion.lat, recicladorUbicacion.lng]} />
             )}
             
-            {/* Mi ubicación */}
             <Marker position={[ubicacion.lat, ubicacion.lng]} icon={userIcon}>
               <Popup>Tu ubicación 📍</Popup>
             </Marker>
             
-            {/* Ubicación del reciclador */}
             {recicladorUbicacion && (
               <>
                 <Marker
@@ -304,15 +316,50 @@ export default function SolicitarRecoleccion() {
                   </Popup>
                 </Marker>
                 
-                {/* ✅ LÍNEA DE RUTA en tiempo real */}
+                {/* ✅ RUTA CON MÚLTIPLES CAPAS ESTILO GOOGLE MAPS */}
                 {rutaPolyline.length > 0 && (
-                  <Polyline
-                    positions={rutaPolyline}
-                    color="#10b981"
-                    weight={4}
-                    opacity={0.7}
-                    dashArray="10, 10"
-                  />
+                  <>
+                    <Polyline
+                      positions={rutaPolyline}
+                      pathOptions={{
+                        color: '#000000',
+                        weight: 12,
+                        opacity: 0.15,
+                        lineCap: 'round',
+                        lineJoin: 'round'
+                      }}
+                    />
+                    <Polyline
+                      positions={rutaPolyline}
+                      pathOptions={{
+                        color: '#047857',
+                        weight: 10,
+                        opacity: 0.8,
+                        lineCap: 'round',
+                        lineJoin: 'round'
+                      }}
+                    />
+                    <Polyline
+                      positions={rutaPolyline}
+                      pathOptions={{
+                        color: '#10b981',
+                        weight: 7,
+                        opacity: 1,
+                        lineCap: 'round',
+                        lineJoin: 'round'
+                      }}
+                    />
+                    <Polyline
+                      positions={rutaPolyline}
+                      pathOptions={{
+                        color: '#34d399',
+                        weight: 4,
+                        opacity: 0.7,
+                        lineCap: 'round',
+                        lineJoin: 'round'
+                      }}
+                    />
+                  </>
                 )}
               </>
             )}

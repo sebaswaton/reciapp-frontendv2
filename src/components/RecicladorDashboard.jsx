@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import 'leaflet-routing-machine';
 import { me } from '../api/auth';
 import { 
   MapPin, 
@@ -32,75 +31,119 @@ const recyclerIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-// ✅ COMPONENTE CON INSTRUCCIONES DE NAVEGACIÓN (sin resaltado extra)
+// ✅ COMPONENTE CON MAPBOX DIRECTIONS API (estable y con instrucciones)
 function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
   const map = useMap();
-  const routingControlRef = useRef(null);
+  const polylineRef = useRef(null);
 
   useEffect(() => {
     if (!start || !end || !map) return;
-    if (routingControlRef.current) map.removeControl(routingControlRef.current);
+    
+    // Limpiar ruta anterior
+    if (polylineRef.current) {
+      map.removeLayer(polylineRef.current);
+    }
 
-    routingControlRef.current = L.Routing.control({
-      waypoints: [L.latLng(start[0], start[1]), L.latLng(end[0], end[1])],
-      routeWhileDragging: false,
-      addWaypoints: false,
-      draggableWaypoints: false,
-      fitSelectedRoutes: true,
-      showAlternatives: false,
+    const fetchRoute = async () => {
+      const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
+      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${start[1]},${start[0]};${end[1]},${end[0]}?steps=true&banner_instructions=true&geometries=geojson&access_token=${mapboxToken}`;
       
-      // ✅ RUTA SIMPLE (sin capas múltiples)
-      lineOptions: { 
-        styles: [{ 
-          color: '#10b981', 
-          weight: 6, 
-          opacity: 0.8,
-          lineCap: 'round',
-          lineJoin: 'round'
-        }] 
-      },
-      
-      createMarker: () => null,
-      show: false,
-    }).addTo(map);
+      try {
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.routes && data.routes.length > 0) {
+          const route = data.routes[0];
+          
+          console.log('🗺️ Ruta de Mapbox encontrada');
+          
+          // Extraer coordenadas
+          const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+          
+          // ✅ DIBUJAR RUTA CON MÚLTIPLES CAPAS (estilo Google Maps)
+          const polylineLayers = [
+            // Sombra
+            L.polyline(coordinates, {
+              color: '#000000',
+              weight: 12,
+              opacity: 0.15,
+              lineCap: 'round',
+              lineJoin: 'round'
+            }),
+            // Borde
+            L.polyline(coordinates, {
+              color: '#047857',
+              weight: 10,
+              opacity: 0.8,
+              lineCap: 'round',
+              lineJoin: 'round'
+            }),
+            // Principal
+            L.polyline(coordinates, {
+              color: '#10b981',
+              weight: 7,
+              opacity: 1,
+              lineCap: 'round',
+              lineJoin: 'round'
+            }),
+            // Brillo
+            L.polyline(coordinates, {
+              color: '#34d399',
+              weight: 4,
+              opacity: 0.7,
+              lineCap: 'round',
+              lineJoin: 'round'
+            })
+          ];
 
-    routingControlRef.current.on('routesfound', (e) => {
-      const route = e.routes[0];
-      
-      console.log('🗺️ Ruta encontrada'); // Debug
-      
-      if (onRouteFound) {
-        onRouteFound({
-          distance: (route.summary.totalDistance / 1000).toFixed(1),
-          time: Math.round(route.summary.totalTime / 60),
-        });
+          // Agregar todas las capas al mapa
+          const layerGroup = L.layerGroup(polylineLayers).addTo(map);
+          polylineRef.current = layerGroup;
+          
+          // Ajustar vista
+          const bounds = L.latLngBounds(coordinates);
+          map.fitBounds(bounds, { padding: [50, 50] });
+          
+          // ✅ INFORMACIÓN DE RUTA
+          if (onRouteFound) {
+            onRouteFound({
+              distance: (route.distance / 1000).toFixed(1),
+              time: Math.round(route.duration / 60),
+            });
+          }
+          
+          // ✅ INSTRUCCIONES DE NAVEGACIÓN
+          if (onInstructionsUpdate && route.legs && route.legs[0].steps) {
+            const steps = route.legs[0].steps;
+            console.log('📋 Total instrucciones:', steps.length);
+            
+            const proximoPaso = steps[0];
+            onInstructionsUpdate({
+              text: proximoPaso.maneuver.instruction || 'Continúa recto',
+              distance: (proximoPaso.distance / 1000).toFixed(2),
+              type: proximoPaso.maneuver.type,
+              allInstructions: steps.slice(0, 3).map(step => ({
+                text: step.maneuver.instruction,
+                distance: step.distance,
+                type: step.maneuver.type
+              }))
+            });
+            
+            console.log('✅ Instrucciones de Mapbox cargadas');
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error obteniendo ruta de Mapbox:', error);
+        alert('Error al calcular la ruta. Verifica tu conexión.');
       }
-      
-      // ✅ ENVIAR INSTRUCCIONES DE NAVEGACIÓN
-      if (onInstructionsUpdate && route.instructions && route.instructions.length > 0) {
-        console.log('📋 Total instrucciones:', route.instructions.length); // Debug
-        
-        const proximaInstruccion = route.instructions[0];
-        const instruccionesData = {
-          text: proximaInstruccion.text || 'Continúa recto',
-          distance: (proximaInstruccion.distance / 1000).toFixed(2),
-          type: proximaInstruccion.type || 'Straight',
-          allInstructions: route.instructions.slice(0, 3).map(instr => ({
-            text: instr.text || 'Continúa',
-            distance: instr.distance,
-            type: instr.type || 'Straight'
-          }))
-        };
-        
-        console.log('✅ Instrucciones enviadas:', instruccionesData); // Debug
-        onInstructionsUpdate(instruccionesData);
-      } else {
-        console.warn('⚠️ No se encontraron instrucciones en la ruta'); // Debug
-      }
-    });
+    };
+    
+    fetchRoute();
 
     return () => {
-      if (routingControlRef.current && map) map.removeControl(routingControlRef.current);
+      if (polylineRef.current && map) {
+        map.removeLayer(polylineRef.current);
+      }
     };
   }, [start, end, map, onRouteFound, onInstructionsUpdate]);
 
