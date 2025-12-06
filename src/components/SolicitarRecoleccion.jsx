@@ -304,15 +304,56 @@ export default function SolicitarRecoleccion() {
                   </Popup>
                 </Marker>
                 
-                {/* ✅ LÍNEA DE RUTA en tiempo real */}
+                {/* ✅ LÍNEA DE RUTA RESALTADA en tiempo real */}
                 {rutaPolyline.length > 0 && (
-                  <Polyline
-                    positions={rutaPolyline}
-                    color="#10b981"
-                    weight={4}
-                    opacity={0.7}
-                    dashArray="10, 10"
-                  />
+                  <>
+                    {/* Capa de sombra */}
+                    <Polyline
+                      positions={rutaPolyline}
+                      pathOptions={{
+                        color: '#000000',
+                        weight: 10,
+                        opacity: 0.15,
+                        lineCap: 'round',
+                        lineJoin: 'round'
+                      }}
+                    />
+                    {/* Capa de borde */}
+                    <Polyline
+                      positions={rutaPolyline}
+                      pathOptions={{
+                        color: '#047857',
+                        weight: 8,
+                        opacity: 0.8,
+                        lineCap: 'round',
+                        lineJoin: 'round'
+                      }}
+                    />
+                    {/* Ruta principal */}
+                    <Polyline
+                      positions={rutaPolyline}
+                      pathOptions={{
+                        color: '#10b981',
+                        weight: 6,
+                        opacity: 1,
+                        lineCap: 'round',
+                        lineJoin: 'round'
+                      }}
+                    />
+                    {/* Brillo superior con animación */}
+                    <Polyline
+                      positions={rutaPolyline}
+                      pathOptions={{
+                        color: '#34d399',
+                        weight: 3,
+                        opacity: 0.7,
+                        lineCap: 'round',
+                        lineJoin: 'round',
+                        dashArray: '10, 5',
+                        className: 'animate-pulse'
+                      }}
+                    />
+                  </>
                 )}
               </>
             )}

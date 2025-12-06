@@ -5,3 +5,29 @@
 
 :root { color-scheme: light; }
 body { @apply bg-gray-50 text-gray-900; }
+
+/* ✅ Estilos para la ruta resaltada estilo Google Maps */
+.leaflet-routing-container {
+  display: none !important; /* Ocultar panel de instrucciones de leaflet */
+}
+
+/* Animación de pulso para la ruta */
+@keyframes route-pulse {
+  0%, 100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Efecto de sombra en la ruta */
+.leaflet-routing-line {
+  filter: drop-shadow(0 4px 12px rgba(16, 185, 129, 0.5));
+  animation: route-pulse 2s ease-in-out infinite;
+}
+
+/* Mejorar visualización de marcadores en la ruta */
+.leaflet-marker-icon {
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
+}
