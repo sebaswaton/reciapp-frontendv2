@@ -411,10 +411,22 @@ export default function RecicladorDashboard() {
 
       if (!response.ok) throw new Error('Error al completar');
 
+      // ✅ NOTIFICAR VIA WEBSOCKET
+      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        socketRef.current.send(
+          JSON.stringify({ 
+            type: 'completar_solicitud', 
+            solicitud_id: solicitudActiva.id 
+          })
+        );
+      }
+
       alert('¡Excelente trabajo! +50 Puntos 🌟');
+      
       setSolicitudActiva(null);
       setDisponible(true);
       setRouteInfo(null);
+      setNavigationInstructions(null);
     } catch (error) {
       console.error(error);
     }

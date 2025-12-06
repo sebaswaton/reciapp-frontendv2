@@ -120,6 +120,13 @@ export default function SolicitarRecoleccion() {
         if (ubicacion) {
           fetchMapboxRoute(nuevaUbicacion, ubicacion);
         }
+      } else if (data.type === 'solicitud_completada') {
+        // ✅ NUEVO: Limpiar cuando el reciclador completa
+        alert('¡Recolección completada! Gracias por reciclar 🌱');
+        setSolicitudActiva(null);
+        setRecicladorUbicacion(null);
+        setRutaPolyline([]);
+        setDistanciaEstimada(null);
       }
     };
     ws.onerror = (err) => console.error('Error WS:', err);
@@ -264,8 +271,12 @@ export default function SolicitarRecoleccion() {
       }
 
       alert('Solicitud cancelada correctamente');
+      
+      // ✅ LIMPIAR ESTADO COMPLETO
       setSolicitudActiva(null);
       setRecicladorUbicacion(null);
+      setRutaPolyline([]); // ✅ Limpiar ruta
+      setDistanciaEstimada(null); // ✅ Limpiar distancia
     } catch (err) {
       console.error(err);
       alert('Error al cancelar la solicitud');
