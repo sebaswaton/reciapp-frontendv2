@@ -32,7 +32,7 @@ const recyclerIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-// ✅ SOLO UNA VERSIÓN DEL COMPONENTE (con navegación)
+// ✅ COMPONENTE CON RUTA RESALTADA Y ACTUALIZACIÓN DE INSTRUCCIONES
 function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
   const map = useMap();
   const routingControlRef = useRef(null);
@@ -48,9 +48,21 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
       draggableWaypoints: false,
       fitSelectedRoutes: true,
       showAlternatives: false,
-      lineOptions: { styles: [{ color: '#10b981', weight: 6, opacity: 0.8 }] },
+      
+      // ✅ RUTA RESALTADA CON MÚLTIPLES CAPAS ESTILO GOOGLE MAPS
+      lineOptions: {
+        styles: [
+          { color: '#000000', opacity: 0.15, weight: 12, lineCap: 'round', lineJoin: 'round' },
+          { color: '#047857', opacity: 0.8, weight: 10, lineCap: 'round', lineJoin: 'round' },
+          { color: '#10b981', opacity: 1, weight: 7, lineCap: 'round', lineJoin: 'round' },
+          { color: '#34d399', opacity: 0.7, weight: 4, lineCap: 'round', lineJoin: 'round' }
+        ],
+        extendToWaypoints: true,
+        missingRouteTolerance: 0
+      },
+      
       createMarker: () => null,
-      show: false, // Ocultar panel por defecto
+      show: false,
     }).addTo(map);
 
     routingControlRef.current.on('routesfound', (e) => {
@@ -62,8 +74,8 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
         });
       }
       
-      // ✅ ENVIAR INSTRUCCIONES DE NAVEGACIÓN
-      if (onInstructionsUpdate && route.instructions) {
+      // ✅ ACTUALIZAR INSTRUCCIONES cuando se recalcula la ruta
+      if (onInstructionsUpdate && route.instructions && route.instructions.length > 0) {
         const proximaInstruccion = route.instructions[0];
         onInstructionsUpdate({
           text: proximaInstruccion.text || 'Continúa recto',
