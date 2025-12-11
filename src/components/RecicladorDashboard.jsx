@@ -190,7 +190,8 @@ export default function RecicladorDashboard() {
   
   const [disponible, setDisponible] = useState(true);
   const [routeInfo, setRouteInfo] = useState(null);
-  const [navigationInstructions, setNavigationInstructions] = useState(null); // ✅ NUEVO
+  const [navigationInstructions, setNavigationInstructions] = useState(null);
+  const [mostrarRuta, setMostrarRuta] = useState(false); // ✅ NUEVO: Control de visibilidad de ruta
   
   // UI States
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -396,6 +397,7 @@ export default function RecicladorDashboard() {
       setSolicitudActiva(solicitud);
       setSolicitudesPendientes((prev) => prev.filter((s) => s.id !== solicitud.id));
       setDisponible(false);
+      setMostrarRuta(true); // ✅ Activar ruta
       
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
         socketRef.current.send(
@@ -409,6 +411,10 @@ export default function RecicladorDashboard() {
 
   const completarServicio = async () => {
     if (!solicitudActiva) return;
+    
+    // ✅ PRIMERO: Ocultar la ruta ANTES de hacer cualquier otra cosa
+    setMostrarRuta(false);
+    
     try {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/solicitudes/${solicitudActiva.id}`, {
         method: 'PUT',
@@ -433,15 +439,16 @@ export default function RecicladorDashboard() {
 
       alert('¡Excelente trabajo! +50 Puntos 🌟');
       
-      // ✅ LIMPIAR EN EL ORDEN CORRECTO
-      setSolicitudActiva(null); // Esto hará que RoutingMachine se desmonte
+      // ✅ LIMPIAR TODO EL ESTADO
+      setSolicitudActiva(null);
       setNavigationInstructions(null);
       setRouteInfo(null);
       setDisponible(true);
       
-      console.log('✅ Servicio completado, estado limpiado');
+      console.log('✅ Servicio completado, ruta limpiada');
     } catch (error) {
       console.error(error);
+      setMostrarRuta(true); // Restaurar si hay error
       alert('Error al completar el servicio');
     }
   };
@@ -512,8 +519,8 @@ export default function RecicladorDashboard() {
             </Marker>
           ))}
 
-          {/* ✅ RUTA ACTIVA CON NAVEGACIÓN */}
-          {solicitudActiva && miUbicacion && (
+          {/* ✅ RUTA ACTIVA - Solo mostrar si mostrarRuta es true */}
+          {mostrarRuta && solicitudActiva && miUbicacion && (
             <>
               <Marker position={[solicitudActiva.latitud, solicitudActiva.longitud]} icon={userIcon}>
                 <Popup>
@@ -535,8 +542,8 @@ export default function RecicladorDashboard() {
         </MapContainer>
       </div>
 
-      {/* ✅ PANEL DE NAVEGACIÓN GPS EN VIVO (FLOTANTE) */}
-      {solicitudActiva && navigationInstructions && (
+      {/* ✅ PANEL DE NAVEGACIÓN - Solo mostrar si mostrarRuta es true */}
+      {mostrarRuta && solicitudActiva && navigationInstructions && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[999] bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-4 max-w-md w-11/12 border-2 border-green-500">
           <div className="flex items-center gap-4">
             <div className="bg-green-100 p-3 rounded-full">
