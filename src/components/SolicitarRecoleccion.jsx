@@ -51,6 +51,8 @@ export default function SolicitarRecoleccion() {
   const [recicladorUbicacion, setRecicladorUbicacion] = useState(null);
   const [rutaPolyline, setRutaPolyline] = useState([]);
   const [distanciaEstimada, setDistanciaEstimada] = useState(null);
+  const [tiempoEstimado, setTiempoEstimado] = useState(null); // ✅ NUEVO
+  const mapRef = useRef(null);
   const polylineLayersRef = useRef(null); // ✅ NUEVO
   const [solicitudActiva, setSolicitudActiva] = useState(null);
   const [formulario, setFormulario] = useState({
@@ -60,7 +62,6 @@ export default function SolicitarRecoleccion() {
   });
   const [loading, setLoading] = useState(false);
   const socketRef = useRef(null);
-  const mapRef = useRef(null); // ✅ NUEVO
 
   // 🔹 Obtener usuario actual
   useEffect(() => {
@@ -117,9 +118,19 @@ export default function SolicitarRecoleccion() {
         const nuevaUbicacion = { lat: data.lat, lng: data.lng };
         setRecicladorUbicacion(nuevaUbicacion);
         
-        // ✅ OBTENER RUTA DE MAPBOX
+        // ✅ OBTENER RUTA DE MAPBOX Y CALCULAR DISTANCIA EN TIEMPO REAL
         if (ubicacion) {
           fetchMapboxRoute(nuevaUbicacion, ubicacion);
+          
+          // ✅ Calcular distancia directa (Haversine) para actualización rápida
+          const distanciaDirecta = calcularDistancia(
+            nuevaUbicacion.lat,
+            nuevaUbicacion.lng,
+            ubicacion.lat,
+            ubicacion.lng
+          );
+          setDistanciaEstimada(distanciaDirecta);
+          setTiempoEstimado(Math.ceil(parseFloat(distanciaDirecta) * 3)); // 3 min por km
         }
       } else if (data.type === 'solicitud_completada') {
         alert('¡Recolección completada! Gracias por reciclar 🌱');
@@ -127,7 +138,8 @@ export default function SolicitarRecoleccion() {
         setRecicladorUbicacion(null);
         setRutaPolyline([]);
         setDistanciaEstimada(null);
-        // ✅ Limpieza agresiva de capas (si quedara algo)
+        setTiempoEstimado(null);
+        
         if (mapRef.current) {
           mapRef.current.eachLayer((layer) => {
             if (layer instanceof L.Polyline || layer instanceof L.LayerGroup) {
@@ -173,10 +185,14 @@ export default function SolicitarRecoleccion() {
         
         setRutaPolyline(coordinates);
         
+        // ✅ Actualizar con datos precisos de Mapbox
         const distancia = (route.distance / 1000).toFixed(2);
-        setDistanciaEstimada(distancia);
+        const tiempo = Math.round(route.duration / 60);
         
-        console.log('🗺️ Ruta actualizada desde Mapbox');
+        setDistanciaEstimada(distancia);
+        setTiempoEstimado(tiempo);
+        
+        console.log('🗺️ Ruta actualizada desde Mapbox:', { distancia, tiempo });
       }
     } catch (error) {
       console.error('❌ Error obteniendo ruta:', error);
@@ -268,7 +284,6 @@ export default function SolicitarRecoleccion() {
 
       if (!response.ok) throw new Error('Error al cancelar solicitud');
 
-      // Notificar via WebSocket
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
         socketRef.current.send(
           JSON.stringify({
@@ -280,11 +295,11 @@ export default function SolicitarRecoleccion() {
 
       alert('Solicitud cancelada correctamente');
       
-      // ✅ LIMPIAR ESTADO COMPLETO
       setSolicitudActiva(null);
       setRecicladorUbicacion(null);
-      setRutaPolyline([]); // ✅ Limpiar ruta
-      setDistanciaEstimada(null); // ✅ Limpiar distancia
+      setRutaPolyline([]);
+      setDistanciaEstimada(null);
+      setTiempoEstimado(null); // ✅ Limpiar tiempo
     } catch (err) {
       console.error(err);
       alert('Error al cancelar la solicitud');
@@ -505,8 +520,8 @@ export default function SolicitarRecoleccion() {
                     : 'El reciclador está llegando a tu ubicación'}
                 </p>
                 
-                {/* ✅ INFORMACIÓN DE TRACKING */}
-                {recicladorUbicacion && distanciaEstimada && (
+                {/* ✅ INFORMACIÓN DE TRACKING CON TIEMPO REAL */}
+                {recicladorUbicacion && distanciaEstimada && tiempoEstimado && (
                   <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 mb-4 border-2 border-green-200">
                     <div className="flex items-center justify-center gap-4">
                       <div className="text-center">
@@ -515,7 +530,7 @@ export default function SolicitarRecoleccion() {
                       </div>
                       <div className="w-px h-12 bg-green-300"></div>
                       <div className="text-center">
-                        <p className="text-3xl font-bold text-green-600">~{Math.ceil(parseFloat(distanciaEstimada) * 3)}</p>
+                        <p className="text-3xl font-bold text-green-600">~{tiempoEstimado}</p>
                         <p className="text-xs text-gray-500 uppercase">min aprox</p>
                       </div>
                     </div>
