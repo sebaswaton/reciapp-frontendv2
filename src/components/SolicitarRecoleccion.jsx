@@ -116,9 +116,9 @@ export default function SolicitarRecoleccion() {
         const nuevaUbicacion = { lat: data.lat, lng: data.lng };
         setRecicladorUbicacion(nuevaUbicacion);
         
-        // ✅ CAMBIAR A GOOGLE MAPS
+        // ✅ OBTENER RUTA DE MAPBOX
         if (ubicacion) {
-          fetchGoogleRoute(nuevaUbicacion, ubicacion);
+          fetchMapboxRoute(nuevaUbicacion, ubicacion);
         }
       } else if (data.type === 'solicitud_completada') {
         // ✅ NUEVO: Limpiar cuando el reciclador completa
@@ -139,20 +139,19 @@ export default function SolicitarRecoleccion() {
     };
   }, [userId, ubicacion]);
 
-  // ✅ FUNCIÓN para obtener ruta de Google Maps (sin API Key)
-  const fetchGoogleRoute = async (origen, destino) => {
+  // ✅ FUNCIÓN para obtener ruta de Mapbox (con validación)
+  const fetchMapboxRoute = async (origen, destino) => {
+    const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
+    
+    if (!mapboxToken || mapboxToken === 'pk.tu_token_aqui') {
+      console.error('❌ Token de Mapbox no configurado');
+      return;
+    }
+    
+    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${origen.lng},${origen.lat};${destino.lng},${destino.lat}?geometries=geojson&access_token=${mapboxToken}`;
+    
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/proxy/directions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          origin: `${origen.lat},${origen.lng}`,
-          destination: `${destino.lat},${destino.lng}`
-        })
-      });
+      const response = await fetch(url);
       
       if (!response.ok) {
         throw new Error(`Error ${response.status}`);
@@ -160,52 +159,21 @@ export default function SolicitarRecoleccion() {
       
       const data = await response.json();
       
-      if (data.status === 'OK' && data.routes && data.routes.length > 0) {
+      if (data.routes && data.routes.length > 0) {
         const route = data.routes[0];
-        const coordinates = decodePolyline(route.overview_polyline.points);
+        const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
         
         setRutaPolyline(coordinates);
         
-        const distancia = (route.legs[0].distance.value / 1000).toFixed(2);
+        const distancia = (route.distance / 1000).toFixed(2);
         setDistanciaEstimada(distancia);
         
-        console.log('🗺️ Ruta actualizada desde Google Maps');
+        console.log('🗺️ Ruta actualizada desde Mapbox');
       }
     } catch (error) {
       console.error('❌ Error obteniendo ruta:', error);
     }
   };
-
-  // ✅ Función para decodificar polyline
-  function decodePolyline(encoded) {
-    const points = [];
-    let index = 0, len = encoded.length;
-    let lat = 0, lng = 0;
-
-    while (index < len) {
-      let b, shift = 0, result = 0;
-      do {
-        b = encoded.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
-      lat += dlat;
-
-      shift = 0;
-      result = 0;
-      do {
-        b = encoded.charCodeAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
-      lng += dlng;
-
-      points.push([lat / 1e5, lng / 1e5]);
-    }
-    return points;
-  }
 
   // ✅ FUNCIÓN para calcular distancia (Haversine)
   const calcularDistancia = (lat1, lon1, lat2, lon2) => {
