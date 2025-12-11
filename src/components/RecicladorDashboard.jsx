@@ -31,14 +31,13 @@ const recyclerIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-// ✅ COMPONENTE CON MAPBOX DIRECTIONS API (con limpieza mejorada)
+// ✅ COMPONENTE CON GOOGLE MAPS DIRECTIONS API
 function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
   const map = useMap();
   const polylineRef = useRef(null);
 
   useEffect(() => {
     if (!start || !end || !map) {
-      // ✅ LIMPIAR SI NO HAY COORDENADAS
       if (polylineRef.current && map) {
         map.removeLayer(polylineRef.current);
         polylineRef.current = null;
@@ -46,43 +45,59 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
       return;
     }
     
-    // Limpiar ruta anterior
     if (polylineRef.current) {
       map.removeLayer(polylineRef.current);
       polylineRef.current = null;
     }
 
     const fetchRoute = async () => {
-      const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
+      const googleApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
       
-      if (!mapboxToken || mapboxToken === 'pk.tu_token_aqui') {
-        console.error('❌ Token de Mapbox no configurado');
-        alert('Por favor configura tu token de Mapbox en el archivo .env\n\nVITE_MAPBOX_TOKEN=pk.tu_token_real');
+      if (!googleApiKey || googleApiKey === 'YOUR_API_KEY') {
+        console.error('❌ API Key de Google Maps no configurada');
+        alert('Por favor configura tu API Key de Google Maps en .env\n\nVITE_GOOGLE_MAPS_API_KEY=tu_key');
         return;
       }
 
-      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${start[1]},${start[0]};${end[1]},${end[0]}?steps=true&banner_instructions=true&geometries=geojson&access_token=${mapboxToken}`;
+      // ✅ CONSTRUIR URL DE GOOGLE DIRECTIONS API
+      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${start[0]},${start[1]}&destination=${end[0]},${end[1]}&mode=driving&key=${googleApiKey}`;
       
-      console.log('📍 Calculando ruta...');
+      console.log('📍 Calculando ruta con Google Maps...');
       
       try {
-        const response = await fetch(url);
+        // ⚠️ IMPORTANTE: Necesitas un proxy porque Google bloquea CORS
+        // Opción 1: Usar tu backend como proxy
+        const proxyUrl = `${import.meta.env.VITE_API_URL}/api/proxy/directions`;
+        
+        const response = await fetch(proxyUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({
+            origin: `${start[0]},${start[1]}`,
+            destination: `${end[0]},${end[1]}`,
+            api_key: googleApiKey
+          })
+        });
         
         if (!response.ok) {
-          const errorData = await response.json();
-          console.error('❌ Error de Mapbox:', errorData);
-          throw new Error(`Error ${response.status}: ${errorData.message || 'Error al calcular ruta'}`);
+          throw new Error(`Error ${response.status}`);
         }
         
         const data = await response.json();
         
-        if (data.routes && data.routes.length > 0) {
+        if (data.status === 'OK' && data.routes && data.routes.length > 0) {
           const route = data.routes[0];
+          const leg = route.legs[0];
           
-          console.log('🗺️ Ruta de Mapbox encontrada');
+          console.log('🗺️ Ruta de Google Maps encontrada');
           
-          const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+          // ✅ DECODIFICAR POLYLINE DE GOOGLE
+          const coordinates = decodePolyline(route.overview_polyline.points);
           
+          // Dibujar ruta con múltiples capas
           const polylineLayers = [
             L.polyline(coordinates, {
               color: '#000000',
@@ -92,21 +107,21 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
               lineJoin: 'round'
             }),
             L.polyline(coordinates, {
-              color: '#047857',
+              color: '#1a73e8',
               weight: 10,
               opacity: 0.8,
               lineCap: 'round',
               lineJoin: 'round'
             }),
             L.polyline(coordinates, {
-              color: '#10b981',
+              color: '#4285f4',
               weight: 7,
               opacity: 1,
               lineCap: 'round',
               lineJoin: 'round'
             }),
             L.polyline(coordinates, {
-              color: '#34d399',
+              color: '#8ab4f8',
               weight: 4,
               opacity: 0.7,
               lineCap: 'round',
@@ -122,41 +137,40 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
           
           if (onRouteFound) {
             onRouteFound({
-              distance: (route.distance / 1000).toFixed(1),
-              time: Math.round(route.duration / 60),
+              distance: (leg.distance.value / 1000).toFixed(1),
+              time: Math.round(leg.duration.value / 60),
             });
           }
           
-          if (onInstructionsUpdate && route.legs && route.legs[0].steps) {
-            const steps = route.legs[0].steps;
-            console.log('📋 Total instrucciones:', steps.length);
+          // ✅ INSTRUCCIONES DE GOOGLE MAPS
+          if (onInstructionsUpdate && leg.steps) {
+            console.log('📋 Total instrucciones:', leg.steps.length);
             
-            const proximoPaso = steps[0];
+            const proximoPaso = leg.steps[0];
             onInstructionsUpdate({
-              text: proximoPaso.maneuver.instruction || 'Continúa recto',
-              distance: (proximoPaso.distance / 1000).toFixed(2),
-              type: proximoPaso.maneuver.type,
-              allInstructions: steps.slice(0, 3).map(step => ({
-                text: step.maneuver.instruction,
-                distance: step.distance,
-                type: step.maneuver.type
+              text: proximoPaso.html_instructions.replace(/<[^>]*>/g, '') || 'Continúa recto',
+              distance: (proximoPaso.distance.value / 1000).toFixed(2),
+              type: proximoPaso.maneuver || 'straight',
+              allInstructions: leg.steps.slice(0, 3).map(step => ({
+                text: step.html_instructions.replace(/<[^>]*>/g, ''),
+                distance: step.distance.value,
+                type: step.maneuver || 'straight'
               }))
             });
             
-            console.log('✅ Instrucciones de Mapbox cargadas');
+            console.log('✅ Instrucciones de Google Maps cargadas');
           }
         } else {
-          throw new Error('No se encontró ninguna ruta');
+          throw new Error(`Google Maps error: ${data.status}`);
         }
       } catch (error) {
-        console.error('❌ Error obteniendo ruta de Mapbox:', error);
-        alert(`Error al calcular la ruta:\n${error.message}\n\nVerifica:\n1. Tu token de Mapbox en .env\n2. Tu conexión a internet\n3. Que las coordenadas sean válidas`);
+        console.error('❌ Error obteniendo ruta de Google Maps:', error);
+        alert(`Error al calcular la ruta:\n${error.message}`);
       }
     };
     
     fetchRoute();
 
-    // ✅ CLEANUP: Limpiar cuando se desmonta el componente
     return () => {
       if (polylineRef.current && map) {
         console.log('🧹 Limpiando ruta del mapa');
@@ -167,6 +181,37 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
   }, [start, end, map, onRouteFound, onInstructionsUpdate]);
 
   return null;
+}
+
+// ✅ FUNCIÓN PARA DECODIFICAR POLYLINE DE GOOGLE
+function decodePolyline(encoded) {
+  const points = [];
+  let index = 0, len = encoded.length;
+  let lat = 0, lng = 0;
+
+  while (index < len) {
+    let b, shift = 0, result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lat += dlat;
+
+    shift = 0;
+    result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lng += dlng;
+
+    points.push([lat / 1e5, lng / 1e5]);
+  }
+  return points;
 }
 
 // --- COMPONENTE PARA CENTRAR MAPA (CORREGIDO ✅) ---
