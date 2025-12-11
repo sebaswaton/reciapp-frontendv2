@@ -60,6 +60,7 @@ export default function SolicitarRecoleccion() {
   });
   const [loading, setLoading] = useState(false);
   const socketRef = useRef(null);
+  const mapRef = useRef(null); // ✅ NUEVO
 
   // 🔹 Obtener usuario actual
   useEffect(() => {
@@ -121,12 +122,19 @@ export default function SolicitarRecoleccion() {
           fetchMapboxRoute(nuevaUbicacion, ubicacion);
         }
       } else if (data.type === 'solicitud_completada') {
-        // ✅ NUEVO: Limpiar cuando el reciclador completa
         alert('¡Recolección completada! Gracias por reciclar 🌱');
         setSolicitudActiva(null);
         setRecicladorUbicacion(null);
         setRutaPolyline([]);
         setDistanciaEstimada(null);
+        // ✅ Limpieza agresiva de capas (si quedara algo)
+        if (mapRef.current) {
+          mapRef.current.eachLayer((layer) => {
+            if (layer instanceof L.Polyline || layer instanceof L.LayerGroup) {
+              mapRef.current.removeLayer(layer);
+            }
+          });
+        }
       }
     };
     ws.onerror = (err) => console.error('Error WS:', err);
@@ -306,6 +314,7 @@ export default function SolicitarRecoleccion() {
             center={[ubicacion.lat, ubicacion.lng]}
             zoom={15}
             className="h-full w-full"
+            whenCreated={(mapInstance) => { mapRef.current = mapInstance; }} // ✅ capturar instancia
           >
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
