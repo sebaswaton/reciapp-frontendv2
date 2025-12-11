@@ -51,9 +51,7 @@ export default function SolicitarRecoleccion() {
   const [recicladorUbicacion, setRecicladorUbicacion] = useState(null);
   const [rutaPolyline, setRutaPolyline] = useState([]);
   const [distanciaEstimada, setDistanciaEstimada] = useState(null);
-  const [tiempoEstimado, setTiempoEstimado] = useState(null);
-  const mapRef = useRef(null);
-  const polylineLayersRef = useRef(null);
+  const polylineLayersRef = useRef(null); // ✅ NUEVO
   const [solicitudActiva, setSolicitudActiva] = useState(null);
   const [formulario, setFormulario] = useState({
     tipo_material: 'plastico',
@@ -102,77 +100,46 @@ export default function SolicitarRecoleccion() {
     const ws = new WebSocket(`${wsUrl}/ws/${userId}`);
     socketRef.current = ws;
 
-    ws.onopen = () => console.log('✅ WebSocket conectado - Ciudadano');
-    
+    ws.onopen = () => console.log('WebSocket conectado ✅');
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      console.log('📩 Mensaje recibido:', data);
+      console.log('Mensaje recibido:', data);
       
       if (data.type === 'solicitud_aceptada') {
-        console.log('✅ Reciclador aceptó la solicitud:', data);
         setSolicitudActiva((prev) => ({
           ...prev,
           estado: 'aceptada',
           reciclador_id: data.reciclador_id,
         }));
         alert('¡Un reciclador aceptó tu solicitud! Está en camino 🚗');
-      } 
-      
-      else if (data.type === 'ubicacion_reciclador') {
-        // ✅ SOLO procesar si la ubicación es de MI solicitud
-        if (data.solicitud_id === solicitudActiva?.id) {
-          const nuevaUbicacion = { lat: data.lat, lng: data.lng };
-          console.log('📍 Ubicación reciclador actualizada:', nuevaUbicacion);
-          setRecicladorUbicacion(nuevaUbicacion);
-          
-          // ✅ Calcular distancia y obtener ruta de Mapbox
-          if (ubicacion) {
-            // Distancia directa instantánea (Haversine)
-            const distanciaDirecta = calcularDistancia(
-              nuevaUbicacion.lat,
-              nuevaUbicacion.lng,
-              ubicacion.lat,
-              ubicacion.lng
-            );
-            setDistanciaEstimada(distanciaDirecta);
-            setTiempoEstimado(Math.ceil(parseFloat(distanciaDirecta) * 3));
-            
-            // Ruta precisa de Mapbox (toma unos ms más)
-            fetchMapboxRoute(nuevaUbicacion, ubicacion);
-          }
+      } else if (data.type === 'ubicacion_reciclador') {
+        const nuevaUbicacion = { lat: data.lat, lng: data.lng };
+        setRecicladorUbicacion(nuevaUbicacion);
+        
+        // ✅ OBTENER RUTA DE MAPBOX
+        if (ubicacion) {
+          fetchMapboxRoute(nuevaUbicacion, ubicacion);
         }
-      } 
-      
-      else if (data.type === 'solicitud_completada') {
-        console.log('✅ Solicitud completada');
+      } else if (data.type === 'solicitud_completada') {
+        // ✅ NUEVO: Limpiar cuando el reciclador completa
         alert('¡Recolección completada! Gracias por reciclar 🌱');
         setSolicitudActiva(null);
         setRecicladorUbicacion(null);
         setRutaPolyline([]);
         setDistanciaEstimada(null);
-        setTiempoEstimado(null);
-        
-        if (mapRef.current) {
-          mapRef.current.eachLayer((layer) => {
-            if (layer instanceof L.Polyline || layer instanceof L.LayerGroup) {
-              mapRef.current.removeLayer(layer);
-            }
-          });
-        }
       }
     };
-    
-    ws.onerror = (err) => console.error('❌ Error WS:', err);
-    ws.onclose = () => console.log('❌ WebSocket desconectado');
+    ws.onerror = (err) => console.error('Error WS:', err);
+    ws.onclose = () => console.log('WebSocket desconectado ❌');
 
     return () => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.close();
       }
     };
-  }, [userId, ubicacion, solicitudActiva]);
+  }, [userId, ubicacion]);
 
-  // ✅ FUNCIÓN para obtener ruta de Mapbox
+  // ✅ FUNCIÓN para obtener ruta de Mapbox (con validación)
   const fetchMapboxRoute = async (origen, destino) => {
     const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
     
@@ -198,14 +165,10 @@ export default function SolicitarRecoleccion() {
         
         setRutaPolyline(coordinates);
         
-        // ✅ Actualizar con datos precisos de Mapbox
         const distancia = (route.distance / 1000).toFixed(2);
-        const tiempo = Math.round(route.duration / 60);
-        
         setDistanciaEstimada(distancia);
-        setTiempoEstimado(tiempo);
         
-        console.log('🗺️ Ruta actualizada - Distancia:', distancia, 'km, Tiempo:', tiempo, 'min');
+        console.log('🗺️ Ruta actualizada desde Mapbox');
       }
     } catch (error) {
       console.error('❌ Error obteniendo ruta:', error);
@@ -297,6 +260,7 @@ export default function SolicitarRecoleccion() {
 
       if (!response.ok) throw new Error('Error al cancelar solicitud');
 
+      // Notificar via WebSocket
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
         socketRef.current.send(
           JSON.stringify({
@@ -308,11 +272,11 @@ export default function SolicitarRecoleccion() {
 
       alert('Solicitud cancelada correctamente');
       
+      // ✅ LIMPIAR ESTADO COMPLETO
       setSolicitudActiva(null);
       setRecicladorUbicacion(null);
-      setRutaPolyline([]);
-      setDistanciaEstimada(null);
-      setTiempoEstimado(null);
+      setRutaPolyline([]); // ✅ Limpiar ruta
+      setDistanciaEstimada(null); // ✅ Limpiar distancia
     } catch (err) {
       console.error(err);
       alert('Error al cancelar la solicitud');
@@ -342,7 +306,6 @@ export default function SolicitarRecoleccion() {
             center={[ubicacion.lat, ubicacion.lng]}
             zoom={15}
             className="h-full w-full"
-            whenCreated={(mapInstance) => { mapRef.current = mapInstance; }} // ✅ capturar instancia
           >
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -533,8 +496,8 @@ export default function SolicitarRecoleccion() {
                     : 'El reciclador está llegando a tu ubicación'}
                 </p>
                 
-                {/* ✅ INFORMACIÓN DE TRACKING CON TIEMPO REAL */}
-                {recicladorUbicacion && distanciaEstimada && tiempoEstimado && (
+                {/* ✅ INFORMACIÓN DE TRACKING */}
+                {recicladorUbicacion && distanciaEstimada && (
                   <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 mb-4 border-2 border-green-200">
                     <div className="flex items-center justify-center gap-4">
                       <div className="text-center">
@@ -543,7 +506,7 @@ export default function SolicitarRecoleccion() {
                       </div>
                       <div className="w-px h-12 bg-green-300"></div>
                       <div className="text-center">
-                        <p className="text-3xl font-bold text-green-600">~{tiempoEstimado}</p>
+                        <p className="text-3xl font-bold text-green-600">~{Math.ceil(parseFloat(distanciaEstimada) * 3)}</p>
                         <p className="text-xs text-gray-500 uppercase">min aprox</p>
                       </div>
                     </div>

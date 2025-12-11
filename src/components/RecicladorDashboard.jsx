@@ -2,7 +2,19 @@ import { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { me } from '../api/auth';
-import { Navigation, Trash2, User, CheckCircle, Power, Menu, X, LogOut, Locate, Leaf } from 'lucide-react';
+import { 
+  MapPin, 
+  Navigation, 
+  Trash2, 
+  User, 
+  CheckCircle, 
+  Power,
+  Menu,
+  X,
+  LogOut,
+  Locate,
+  Leaf
+} from 'lucide-react';
 
 // --- CONFIGURACIÓN DE ICONOS MAPA ---
 const userIcon = new L.Icon({
@@ -178,10 +190,8 @@ export default function RecicladorDashboard() {
   
   const [disponible, setDisponible] = useState(true);
   const [routeInfo, setRouteInfo] = useState(null);
-  const [navigationInstructions, setNavigationInstructions] = useState(null);
-  const [mostrarRuta, setMostrarRuta] = useState(false); // ✅ NUEVO: Control de visibilidad de ruta
-  const mapRef = useRef(null); // ✅ NUEVO: referencia al mapa
-
+  const [navigationInstructions, setNavigationInstructions] = useState(null); // ✅ NUEVO
+  
   // UI States
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [filtroMaterial, setFiltroMaterial] = useState('Todos');
@@ -272,20 +282,21 @@ export default function RecicladorDashboard() {
         };
         setMiUbicacion(nuevaUbicacion);
 
-        // ❌ Quitamos el recálculo dinámico del tiempo/distancia para mantener valores fijos de Mapbox
-        // if (solicitudActiva && routeInfo) {
-        //   const distanciaRestante = calcularDistancia(
-        //     nuevaUbicacion.lat, 
-        //     nuevaUbicacion.lng,
-        //     solicitudActiva.latitud,
-        //     solicitudActiva.longitud
-        //   );
-        //   setRouteInfo(prev => ({
-        //     ...prev,
-        //     distance: distanciaRestante,
-        //     time: Math.ceil(parseFloat(distanciaRestante) * 3)
-        //   }));
-        // }
+        // ✅ ACTUALIZAR DISTANCIA Y TIEMPO en tiempo real
+        if (solicitudActiva && routeInfo) {
+          const distanciaRestante = calcularDistancia(
+            nuevaUbicacion.lat, 
+            nuevaUbicacion.lng,
+            solicitudActiva.latitud,
+            solicitudActiva.longitud
+          );
+          
+          setRouteInfo(prev => ({
+            ...prev,
+            distance: distanciaRestante,
+            time: Math.ceil(parseFloat(distanciaRestante) * 3)
+          }));
+        }
 
         // Enviar ubicación via WebSocket
         if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN && solicitudActiva) {
@@ -300,13 +311,17 @@ export default function RecicladorDashboard() {
         }
       },
       (error) => console.error('Error GPS:', error),
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      { 
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0
+      }
     );
 
     return () => {
       if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current);
     };
-  }, [solicitudActiva, userId /*, routeInfo (removido para no recalcular) */]);
+  }, [solicitudActiva, userId, routeInfo]);
 
   // ✅ FUNCIÓN para calcular distancia
   const calcularDistancia = (lat1, lon1, lat2, lon2) => {
@@ -381,7 +396,6 @@ export default function RecicladorDashboard() {
       setSolicitudActiva(solicitud);
       setSolicitudesPendientes((prev) => prev.filter((s) => s.id !== solicitud.id));
       setDisponible(false);
-      setMostrarRuta(true); // ✅ Activar ruta
       
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
         socketRef.current.send(
@@ -395,17 +409,6 @@ export default function RecicladorDashboard() {
 
   const completarServicio = async () => {
     if (!solicitudActiva) return;
-
-    // ✅ Ocultar ruta y limpiar capas del mapa antes de completar
-    setMostrarRuta(false);
-    if (mapRef.current) {
-      mapRef.current.eachLayer((layer) => {
-        if (layer instanceof L.Polyline || layer instanceof L.LayerGroup) {
-          mapRef.current.removeLayer(layer);
-        }
-      });
-    }
-
     try {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/solicitudes/${solicitudActiva.id}`, {
         method: 'PUT',
@@ -418,20 +421,27 @@ export default function RecicladorDashboard() {
 
       if (!response.ok) throw new Error('Error al completar');
 
+      // ✅ NOTIFICAR VIA WEBSOCKET
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-        socketRef.current.send(JSON.stringify({ type: 'completar_solicitud', solicitud_id: solicitudActiva.id }));
+        socketRef.current.send(
+          JSON.stringify({ 
+            type: 'completar_solicitud', 
+            solicitud_id: solicitudActiva.id 
+          })
+        );
       }
 
       alert('¡Excelente trabajo! +50 Puntos 🌟');
-
-      // ✅ Limpiar estado (no recalcular tiempos)
-      setSolicitudActiva(null);
+      
+      // ✅ LIMPIAR EN EL ORDEN CORRECTO
+      setSolicitudActiva(null); // Esto hará que RoutingMachine se desmonte
       setNavigationInstructions(null);
       setRouteInfo(null);
       setDisponible(true);
+      
+      console.log('✅ Servicio completado, estado limpiado');
     } catch (error) {
       console.error(error);
-      setMostrarRuta(true); // Restaurar la ruta si algo falla al completar
       alert('Error al completar el servicio');
     }
   };
@@ -457,13 +467,7 @@ export default function RecicladorDashboard() {
       
       {/* ================= MAPA ================= */}
       <div className="absolute inset-0 z-0">
-        <MapContainer
-          center={[miUbicacion.lat, miUbicacion.lng]}
-          zoom={15}
-          className="h-full w-full"
-          zoomControl={false}
-          whenCreated={(mapInstance) => { mapRef.current = mapInstance; }} // ✅ capturar instancia
-        >
+        <MapContainer center={[miUbicacion.lat, miUbicacion.lng]} zoom={15} className="h-full w-full" zoomControl={false}>
           <TileLayer
             url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
             attribution='&copy; CARTO'
@@ -508,8 +512,8 @@ export default function RecicladorDashboard() {
             </Marker>
           ))}
 
-          {/* ✅ RUTA ACTIVA - Solo mostrar si mostrarRuta es true */}
-          {mostrarRuta && solicitudActiva && miUbicacion && (
+          {/* ✅ RUTA ACTIVA CON NAVEGACIÓN */}
+          {solicitudActiva && miUbicacion && (
             <>
               <Marker position={[solicitudActiva.latitud, solicitudActiva.longitud]} icon={userIcon}>
                 <Popup>
@@ -523,7 +527,7 @@ export default function RecicladorDashboard() {
                 key={`route-${solicitudActiva.id}`}
                 start={[miUbicacion.lat, miUbicacion.lng]}
                 end={[solicitudActiva.latitud, solicitudActiva.longitud]}
-                onRouteFound={setRouteInfo} // ✅ Usar valores fijos de Mapbox
+                onRouteFound={setRouteInfo}
                 onInstructionsUpdate={setNavigationInstructions}
               />
             </>
@@ -531,8 +535,8 @@ export default function RecicladorDashboard() {
         </MapContainer>
       </div>
 
-      {/* ✅ PANEL DE NAVEGACIÓN - Solo mostrar si mostrarRuta es true */}
-      {mostrarRuta && solicitudActiva && navigationInstructions && (
+      {/* ✅ PANEL DE NAVEGACIÓN GPS EN VIVO (FLOTANTE) */}
+      {solicitudActiva && navigationInstructions && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[999] bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-4 max-w-md w-11/12 border-2 border-green-500">
           <div className="flex items-center gap-4">
             <div className="bg-green-100 p-3 rounded-full">
