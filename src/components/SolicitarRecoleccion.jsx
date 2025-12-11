@@ -139,15 +139,8 @@ export default function SolicitarRecoleccion() {
     };
   }, [userId, ubicacion]);
 
-  // ✅ FUNCIÓN para obtener ruta de Google Maps
+  // ✅ FUNCIÓN para obtener ruta de Google Maps (sin API Key)
   const fetchGoogleRoute = async (origen, destino) => {
-    const googleApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    
-    if (!googleApiKey || googleApiKey === 'YOUR_API_KEY') {
-      console.error('❌ API Key de Google Maps no configurada');
-      return;
-    }
-    
     try {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/proxy/directions`, {
         method: 'POST',
@@ -157,8 +150,7 @@ export default function SolicitarRecoleccion() {
         },
         body: JSON.stringify({
           origin: `${origen.lat},${origen.lng}`,
-          destination: `${destino.lat},${destino.lng}`,
-          api_key: googleApiKey
+          destination: `${destino.lat},${destino.lng}`
         })
       });
       

@@ -31,7 +31,7 @@ const recyclerIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-// ✅ COMPONENTE CON GOOGLE MAPS DIRECTIONS API
+// ✅ COMPONENTE CON GOOGLE MAPS DIRECTIONS API (sin exponer API Key)
 function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
   const map = useMap();
   const polylineRef = useRef(null);
@@ -51,24 +51,12 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
     }
 
     const fetchRoute = async () => {
-      const googleApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-      
-      if (!googleApiKey || googleApiKey === 'YOUR_API_KEY') {
-        console.error('❌ API Key de Google Maps no configurada');
-        alert('Por favor configura tu API Key de Google Maps en .env\n\nVITE_GOOGLE_MAPS_API_KEY=tu_key');
-        return;
-      }
-
-      // ✅ CONSTRUIR URL DE GOOGLE DIRECTIONS API
-      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${start[0]},${start[1]}&destination=${end[0]},${end[1]}&mode=driving&key=${googleApiKey}`;
-      
       console.log('📍 Calculando ruta con Google Maps...');
       
       try {
-        // ⚠️ IMPORTANTE: Necesitas un proxy porque Google bloquea CORS
-        // Opción 1: Usar tu backend como proxy
         const proxyUrl = `${import.meta.env.VITE_API_URL}/api/proxy/directions`;
         
+        // ✅ NO ENVIAR api_key, el backend la tiene
         const response = await fetch(proxyUrl, {
           method: 'POST',
           headers: {
@@ -77,8 +65,7 @@ function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
           },
           body: JSON.stringify({
             origin: `${start[0]},${start[1]}`,
-            destination: `${end[0]},${end[1]}`,
-            api_key: googleApiKey
+            destination: `${end[0]},${end[1]}`
           })
         });
         
