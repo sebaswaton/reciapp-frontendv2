@@ -56,6 +56,7 @@ export default function RecicladorDashboard() {
   const watchIdRef = useRef(null);
   const mapRef = useRef(null);
   const directionsService = useRef(null);
+  const routeUpdateTimerRef = useRef(null); // ✅ NUEVO: Timer para actualizar ruta
 
   // --- 1. AUTENTICACIÓN Y CARGA USUARIO ---
   useEffect(() => {
@@ -112,7 +113,7 @@ export default function RecicladorDashboard() {
     };
   }, [userId, solicitudActiva]);
 
-  // --- 3. GEOLOCALIZACIÓN CON ACTUALIZACIÓN DE RUTA EN TIEMPO REAL ---
+  // --- 3. GEOLOCALIZACIÓN CON ACTUALIZACIÓN CONTROLADA ---
   useEffect(() => {
     if (!navigator.geolocation) return;
     
@@ -131,21 +132,7 @@ export default function RecicladorDashboard() {
         };
         setMiUbicacion(nuevaUbicacion);
 
-        if (solicitudActiva && routeInfo) {
-          const distanciaRestante = calcularDistancia(
-            nuevaUbicacion.lat, 
-            nuevaUbicacion.lng,
-            solicitudActiva.latitud,
-            solicitudActiva.longitud
-          );
-          
-          setRouteInfo(prev => ({
-            ...prev,
-            distance: distanciaRestante,
-            time: Math.ceil(parseFloat(distanciaRestante) * 3)
-          }));
-        }
-
+        // ✅ ENVIAR UBICACIÓN VIA WEBSOCKET (cada segundo está bien)
         if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN && solicitudActiva) {
           socketRef.current.send(JSON.stringify({
             type: 'ubicacion_reciclador',
@@ -157,17 +144,23 @@ export default function RecicladorDashboard() {
         }
       },
       (error) => console.error('Error GPS:', error),
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      { 
+        enableHighAccuracy: true, 
+        timeout: 5000, 
+        maximumAge: 0 
+      }
     );
 
     return () => {
       if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current);
     };
-  }, [solicitudActiva, userId, routeInfo]);
+  }, [solicitudActiva, userId]); // ✅ Removido routeInfo de dependencias
 
-  // ✅ CALCULAR RUTA CON GOOGLE DIRECTIONS API
+  // ✅ CALCULAR RUTA CON GOOGLE DIRECTIONS API (mejorado)
   const calcularRuta = useCallback(() => {
     if (!solicitudActiva || !miUbicacion || !directionsService.current) return;
+
+    console.log('🗺️ Recalculando ruta...');
 
     const origin = new window.google.maps.LatLng(miUbicacion.lat, miUbicacion.lng);
     const destination = new window.google.maps.LatLng(solicitudActiva.latitud, solicitudActiva.longitud);
@@ -180,29 +173,32 @@ export default function RecicladorDashboard() {
       },
       (result, status) => {
         if (status === window.google.maps.DirectionsStatus.OK) {
-          console.log('🗺️ Ruta de Google Maps encontrada');
           setDirections(result);
 
           const route = result.routes[0];
           const leg = route.legs[0];
 
+          // ✅ ACTUALIZAR INFO DE RUTA
           setRouteInfo({
             distance: (leg.distance.value / 1000).toFixed(1),
             time: Math.round(leg.duration.value / 60),
+            duration_seconds: leg.duration.value,
           });
 
+          // ✅ ACTUALIZAR INSTRUCCIONES
           if (leg.steps && leg.steps.length > 0) {
             const step = leg.steps[0];
             setNavigationInstructions({
-              text: step.instructions.replace(/<[^>]*>/g, ''), // Remover HTML
+              text: step.instructions.replace(/<[^>]*>/g, ''),
               distance: (step.distance.value / 1000).toFixed(2),
               allInstructions: leg.steps.slice(0, 3).map(s => ({
                 text: s.instructions.replace(/<[^>]*>/g, ''),
                 distance: s.distance.value,
               }))
             });
-            console.log('✅ Instrucciones de Google Maps cargadas');
           }
+
+          console.log(`✅ Ruta actualizada: ${(leg.distance.value / 1000).toFixed(1)} km, ${Math.round(leg.duration.value / 60)} min`);
         } else {
           console.error('❌ Error calculando ruta:', status);
         }
@@ -210,24 +206,45 @@ export default function RecicladorDashboard() {
     );
   }, [solicitudActiva, miUbicacion]);
 
-  // Calcular ruta cuando se acepta solicitud
+  // ✅ RECALCULAR RUTA CADA 30 SEGUNDOS (como Google Maps)
   useEffect(() => {
-    if (solicitudActiva && miUbicacion && isMapLoaded) {
+    if (!solicitudActiva || !miUbicacion || !isMapLoaded) return;
+
+    // Calcular ruta inmediatamente al aceptar
+    calcularRuta();
+
+    // Configurar actualización cada 30 segundos
+    routeUpdateTimerRef.current = setInterval(() => {
       calcularRuta();
-    }
+    }, 30000); // 30 segundos
+
+    return () => {
+      if (routeUpdateTimerRef.current) {
+        clearInterval(routeUpdateTimerRef.current);
+      }
+    };
   }, [solicitudActiva, miUbicacion, isMapLoaded, calcularRuta]);
 
-  const calcularDistancia = (lat1, lon1, lat2, lon2) => {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return (R * c).toFixed(2);
-  };
+  // ✅ MANTENER MAPA CENTRADO EN LA RUTA (no en el reciclador)
+  useEffect(() => {
+    if (directions && mapRef.current) {
+      // Calcular bounds de la ruta completa
+      const bounds = new window.google.maps.LatLngBounds();
+      const route = directions.routes[0];
+      
+      route.overview_path.forEach(point => {
+        bounds.extend(point);
+      });
+
+      // Ajustar el mapa para mostrar toda la ruta con padding
+      mapRef.current.fitBounds(bounds, {
+        top: 100,
+        right: 50,
+        bottom: 50,
+        left: 50,
+      });
+    }
+  }, [directions]);
 
   // --- 4. CARGA INICIAL ---
   useEffect(() => {
@@ -343,7 +360,7 @@ export default function RecicladorDashboard() {
   const onMapLoad = useCallback((map) => {
     mapRef.current = map;
     directionsService.current = new window.google.maps.DirectionsService();
-    setIsMapLoaded(true); // ✅ NUEVO: Marcar como cargado
+    setIsMapLoaded(true);
   }, []);
 
   // ✅ Calcular ruta solo cuando el mapa esté cargado
@@ -386,12 +403,16 @@ export default function RecicladorDashboard() {
       
       {/* ================= GOOGLE MAPS ================= */}
       <div className="absolute inset-0 z-0">
-        {/* ✅ Ya no usamos LoadScript, el hook lo maneja */}
         <GoogleMap
           mapContainerStyle={mapContainerStyle}
           center={miUbicacion}
           zoom={15}
-          options={mapOptions}
+          options={{
+            ...mapOptions,
+            gestureHandling: 'greedy', // ✅ Permitir zoom/pan manual
+            disableDefaultUI: false,
+            zoomControl: true,
+          }}
           onLoad={onMapLoad}
         >
           {/* Marcador del reciclador */}

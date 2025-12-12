@@ -35,6 +35,7 @@ export default function SolicitarRecoleccion() {
   const socketRef = useRef(null);
   const mapRef = useRef(null);
   const directionsService = useRef(null);
+  const routeUpdateTimerRef = useRef(null); // ✅ NUEVO
 
   // 🔹 Obtener usuario actual
   useEffect(() => {
@@ -109,9 +110,11 @@ export default function SolicitarRecoleccion() {
     };
   }, [userId]);
 
-  // ✅ CALCULAR RUTA CON GOOGLE DIRECTIONS API
+  // ✅ CALCULAR RUTA CON GOOGLE DIRECTIONS API (mejorado)
   const calcularRutaGoogle = useCallback(() => {
     if (!recicladorUbicacion || !ubicacion || !directionsService.current) return;
+
+    console.log('🗺️ Actualizando ruta del reciclador...');
 
     const origin = new window.google.maps.LatLng(recicladorUbicacion.lat, recicladorUbicacion.lng);
     const destination = new window.google.maps.LatLng(ubicacion.lat, ubicacion.lng);
@@ -124,12 +127,13 @@ export default function SolicitarRecoleccion() {
       },
       (result, status) => {
         if (status === window.google.maps.DirectionsStatus.OK) {
-          console.log('🗺️ Ruta de Google Maps actualizada');
           setDirections(result);
 
           const leg = result.routes[0].legs[0];
           setDistanciaEstimada((leg.distance.value / 1000).toFixed(2));
           setTiempoEstimado(Math.ceil(leg.duration.value / 60));
+
+          console.log(`✅ ETA actualizado: ${(leg.distance.value / 1000).toFixed(2)} km, ${Math.ceil(leg.duration.value / 60)} min`);
         } else {
           console.error('❌ Error calculando ruta:', status);
         }
@@ -137,18 +141,40 @@ export default function SolicitarRecoleccion() {
     );
   }, [recicladorUbicacion, ubicacion]);
 
-  const onMapLoad = useCallback((map) => {
-    mapRef.current = map;
-    directionsService.current = new window.google.maps.DirectionsService();
-    setIsMapLoaded(true); // ✅ NUEVO
-  }, []);
-
-  // ✅ Calcular ruta solo cuando el mapa esté cargado
+  // ✅ ACTUALIZAR RUTA CADA 30 SEGUNDOS
   useEffect(() => {
-    if (recicladorUbicacion && ubicacion && isMapLoaded) {
+    if (!recicladorUbicacion || !ubicacion || !isMapLoaded) return;
+
+    // Calcular inmediatamente
+    calcularRutaGoogle();
+
+    // Configurar actualización periódica
+    routeUpdateTimerRef.current = setInterval(() => {
       calcularRutaGoogle();
-    }
+    }, 30000); // 30 segundos
+
+    return () => {
+      if (routeUpdateTimerRef.current) {
+        clearInterval(routeUpdateTimerRef.current);
+      }
+    };
   }, [recicladorUbicacion, ubicacion, isMapLoaded, calcularRutaGoogle]);
+
+  // ✅ MANTENER MAPA CENTRADO EN LA RUTA COMPLETA
+  useEffect(() => {
+    if (directions && mapRef.current && recicladorUbicacion && ubicacion) {
+      const bounds = new window.google.maps.LatLngBounds();
+      bounds.extend(recicladorUbicacion);
+      bounds.extend(ubicacion);
+
+      mapRef.current.fitBounds(bounds, {
+        top: 150,
+        right: 50,
+        bottom: 200,
+        left: 50,
+      });
+    }
+  }, [directions, recicladorUbicacion, ubicacion]);
 
   // 🔹 Crear solicitud
   const handleSolicitar = async () => {
@@ -288,7 +314,10 @@ export default function SolicitarRecoleccion() {
             mapContainerStyle={mapContainerStyle}
             center={ubicacion}
             zoom={15}
-            options={mapOptions}
+            options={{
+              ...mapOptions,
+              gestureHandling: 'greedy', // ✅ Permitir interacción manual
+            }}
             onLoad={onMapLoad}
           >
             {/* Marcador del ciudadano */}
