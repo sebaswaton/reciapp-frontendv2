@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { GoogleMap, useJsApiLoader, Marker, DirectionsRenderer } from '@react-google-maps/api';
 import { me } from '../api/auth';
 
+// ✅ DEFINIR LIBRARIES FUERA DEL COMPONENTE
+const GOOGLE_MAPS_LIBRARIES = ['places'];
+
 const mapContainerStyle = {
   width: '100%',
   height: '100%'
@@ -25,9 +28,9 @@ export default function SolicitarRecoleccion() {
   const socketRef = useRef(null);
   const mapRef = useRef(null);
 
-  const { isLoaded } = useJsApiLoader({
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-    libraries: ['places']
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
+    libraries: GOOGLE_MAPS_LIBRARIES
   });
 
   // 🔹 Obtener usuario actual
@@ -248,6 +251,17 @@ export default function SolicitarRecoleccion() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-green-600 mx-auto mb-4"></div>
           <p className="text-green-700 font-semibold">Obteniendo tu información...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-red-50">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Error cargando mapa</h2>
+          <p className="text-gray-600">Verifica tu API Key de Google Maps</p>
         </div>
       </div>
     );

@@ -14,6 +14,9 @@ import {
   Leaf
 } from 'lucide-react';
 
+// ✅ DEFINIR LIBRARIES FUERA DEL COMPONENTE (fix warning)
+const GOOGLE_MAPS_LIBRARIES = ['places'];
+
 const mapContainerStyle = {
   width: '100%',
   height: '100%'
@@ -53,11 +56,20 @@ export default function RecicladorDashboard() {
   const watchIdRef = useRef(null);
   const mapRef = useRef(null);
 
-  // ✅ CARGAR GOOGLE MAPS
+  // ✅ CARGAR GOOGLE MAPS CON API KEY CORRECTA
   const { isLoaded, loadError } = useJsApiLoader({
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-    libraries: ['places', 'directions']
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
+    libraries: GOOGLE_MAPS_LIBRARIES
   });
+
+  // ✅ VALIDAR API KEY AL CARGAR
+  useEffect(() => {
+    if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY) {
+      console.error('❌ VITE_GOOGLE_MAPS_API_KEY no está configurada en .env');
+    } else {
+      console.log('✅ Google Maps API Key configurada');
+    }
+  }, []);
 
   // --- 1. AUTENTICACIÓN Y CARGA USUARIO ---
   useEffect(() => {
@@ -335,8 +347,32 @@ export default function RecicladorDashboard() {
     return s.tipo_material.toLowerCase().includes(filtroMaterial.toLowerCase());
   });
 
+  // --- RENDER DE ERROR ---
+  if (loadError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-red-50">
+        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Error cargando Google Maps</h2>
+          <p className="text-gray-600 mb-4">
+            No se pudo cargar el script de Google Maps. Verifica:
+          </p>
+          <ul className="list-disc list-inside text-sm text-gray-600 space-y-2">
+            <li>Que tengas un API Key válido en <code className="bg-gray-100 px-2 py-1 rounded">.env</code></li>
+            <li>Que hayas habilitado Maps JavaScript API en Google Cloud</li>
+            <li>Que no tengas restricciones de dominio activas</li>
+          </ul>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-6 w-full bg-red-600 text-white py-3 rounded-lg hover:bg-red-700"
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // --- RENDER DE CARGA ---
-  if (loadError) return <div>Error cargando Google Maps</div>;
   if (!isLoaded || !userId || !miUbicacion) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
