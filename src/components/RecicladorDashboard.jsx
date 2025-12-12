@@ -56,9 +56,9 @@ export default function RecicladorDashboard() {
   const watchIdRef = useRef(null);
   const mapRef = useRef(null);
 
-  // ✅ CARGAR GOOGLE MAPS CON API KEY CORRECTA
+  // ✅ CARGAR GOOGLE MAPS CON API KEY CORRECTA (hardcoded temporalmente)
   const { isLoaded, loadError } = useJsApiLoader({
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'AIzaSyDGapeAc3BXu8S6OVuqBu1RiqeVhT1HgxA',
     libraries: GOOGLE_MAPS_LIBRARIES
   });
 
@@ -716,3 +716,11 @@ window.aceptarSolicitud = (id) => {
   const solicitud = solicitudesPendientes.find(s => s.id === id);
   if (solicitud) aceptarSolicitud(solicitud);
 };
+
+// ✅ DEBUG: Ver todas las variables de entorno
+useEffect(() => {
+  console.log('🔍 Todas las variables de entorno:');
+  console.log('VITE_API_URL:', import.meta.env.VITE_API_URL);
+  console.log('VITE_GOOGLE_MAPS_API_KEY:', import.meta.env.VITE_GOOGLE_MAPS_API_KEY);
+  console.log('Todas las env:', import.meta.env);
+}, []);

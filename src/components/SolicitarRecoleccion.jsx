@@ -29,7 +29,7 @@ export default function SolicitarRecoleccion() {
   const mapRef = useRef(null);
 
   const { isLoaded, loadError } = useJsApiLoader({
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'AIzaSyDGapeAc3BXu8S6OVuqBu1RiqeVhT1HgxA',
     libraries: GOOGLE_MAPS_LIBRARIES
   });
 
