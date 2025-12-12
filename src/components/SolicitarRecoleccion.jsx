@@ -176,6 +176,13 @@ export default function SolicitarRecoleccion() {
     }
   }, [directions, recicladorUbicacion, ubicacion]);
 
+  // ✅ AGREGAR FUNCIÓN onMapLoad (FALTABA)
+  const onMapLoad = useCallback((map) => {
+    mapRef.current = map;
+    directionsService.current = new window.google.maps.DirectionsService();
+    setIsMapLoaded(true);
+  }, []);
+
   // 🔹 Crear solicitud
   const handleSolicitar = async () => {
     if (!ubicacion) return alert('Esperando tu ubicación...');
