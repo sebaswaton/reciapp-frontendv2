@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { GoogleMap, useJsApiLoader, Marker, DirectionsRenderer } from '@react-google-maps/api';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
 import { me } from '../api/auth';
 import { 
+  MapPin, 
   Navigation, 
   Trash2, 
   User, 
@@ -14,31 +16,174 @@ import {
   Leaf
 } from 'lucide-react';
 
-// ✅ DEFINIR LIBRARIES FUERA DEL COMPONENTE (fix warning)
-const GOOGLE_MAPS_LIBRARIES = ['places'];
+// --- CONFIGURACIÓN DE ICONOS MAPA ---
+const userIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+});
 
-const mapContainerStyle = {
-  width: '100%',
-  height: '100%'
-};
+const recyclerIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+});
 
-const mapOptions = {
-  disableDefaultUI: true,
-  zoomControl: true,
-  styles: [
-    {
-      featureType: 'poi',
-      elementType: 'labels',
-      stylers: [{ visibility: 'off' }]
+// ✅ COMPONENTE CON MAPBOX DIRECTIONS API (con limpieza mejorada)
+function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
+  const map = useMap();
+  const polylineRef = useRef(null);
+
+  useEffect(() => {
+    if (!start || !end || !map) {
+      // ✅ LIMPIAR SI NO HAY COORDENADAS
+      if (polylineRef.current && map) {
+        map.removeLayer(polylineRef.current);
+        polylineRef.current = null;
+      }
+      return;
     }
-  ]
-};
+    
+    // Limpiar ruta anterior
+    if (polylineRef.current) {
+      map.removeLayer(polylineRef.current);
+      polylineRef.current = null;
+    }
+
+    const fetchRoute = async () => {
+      const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
+      
+      if (!mapboxToken || mapboxToken === 'pk.tu_token_aqui') {
+        console.error('❌ Token de Mapbox no configurado');
+        alert('Por favor configura tu token de Mapbox en el archivo .env\n\nVITE_MAPBOX_TOKEN=pk.tu_token_real');
+        return;
+      }
+
+      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${start[1]},${start[0]};${end[1]},${end[0]}?steps=true&banner_instructions=true&geometries=geojson&access_token=${mapboxToken}`;
+      
+      console.log('📍 Calculando ruta...');
+      
+      try {
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('❌ Error de Mapbox:', errorData);
+          throw new Error(`Error ${response.status}: ${errorData.message || 'Error al calcular ruta'}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.routes && data.routes.length > 0) {
+          const route = data.routes[0];
+          
+          console.log('🗺️ Ruta de Mapbox encontrada');
+          
+          const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+          
+          const polylineLayers = [
+            L.polyline(coordinates, {
+              color: '#000000',
+              weight: 12,
+              opacity: 0.15,
+              lineCap: 'round',
+              lineJoin: 'round'
+            }),
+            L.polyline(coordinates, {
+              color: '#047857',
+              weight: 10,
+              opacity: 0.8,
+              lineCap: 'round',
+              lineJoin: 'round'
+            }),
+            L.polyline(coordinates, {
+              color: '#10b981',
+              weight: 7,
+              opacity: 1,
+              lineCap: 'round',
+              lineJoin: 'round'
+            }),
+            L.polyline(coordinates, {
+              color: '#34d399',
+              weight: 4,
+              opacity: 0.7,
+              lineCap: 'round',
+              lineJoin: 'round'
+            })
+          ];
+
+          const layerGroup = L.layerGroup(polylineLayers).addTo(map);
+          polylineRef.current = layerGroup;
+          
+          const bounds = L.latLngBounds(coordinates);
+          map.fitBounds(bounds, { padding: [50, 50] });
+          
+          if (onRouteFound) {
+            onRouteFound({
+              distance: (route.distance / 1000).toFixed(1),
+              time: Math.round(route.duration / 60),
+            });
+          }
+          
+          if (onInstructionsUpdate && route.legs && route.legs[0].steps) {
+            const steps = route.legs[0].steps;
+            console.log('📋 Total instrucciones:', steps.length);
+            
+            const proximoPaso = steps[0];
+            onInstructionsUpdate({
+              text: proximoPaso.maneuver.instruction || 'Continúa recto',
+              distance: (proximoPaso.distance / 1000).toFixed(2),
+              type: proximoPaso.maneuver.type,
+              allInstructions: steps.slice(0, 3).map(step => ({
+                text: step.maneuver.instruction,
+                distance: step.distance,
+                type: step.maneuver.type
+              }))
+            });
+            
+            console.log('✅ Instrucciones de Mapbox cargadas');
+          }
+        } else {
+          throw new Error('No se encontró ninguna ruta');
+        }
+      } catch (error) {
+        console.error('❌ Error obteniendo ruta de Mapbox:', error);
+        alert(`Error al calcular la ruta:\n${error.message}\n\nVerifica:\n1. Tu token de Mapbox en .env\n2. Tu conexión a internet\n3. Que las coordenadas sean válidas`);
+      }
+    };
+    
+    fetchRoute();
+
+    // ✅ CLEANUP: Limpiar cuando se desmonta el componente
+    return () => {
+      if (polylineRef.current && map) {
+        console.log('🧹 Limpiando ruta del mapa');
+        map.removeLayer(polylineRef.current);
+        polylineRef.current = null;
+      }
+    };
+  }, [start, end, map, onRouteFound, onInstructionsUpdate]);
+
+  return null;
+}
+
+// --- COMPONENTE PARA CENTRAR MAPA (CORREGIDO ✅) ---
+function MapRecenter({ center }) {
+  const map = useMap();
+  useEffect(() => {
+    if (center) map.setView(center, map.getZoom());
+  }, [center, map]);
+  return null;
+}
 
 export default function RecicladorDashboard() {
   // --- ESTADOS ---
   const [userId, setUserId] = useState(null);
   const [userData, setUserData] = useState(null);
   const [miUbicacion, setMiUbicacion] = useState(null);
+  const [centrarMapaTrigger, setCentrarMapaTrigger] = useState(null);
   
   const [solicitudesPendientes, setSolicitudesPendientes] = useState([]);
   const [solicitudActiva, setSolicitudActiva] = useState(null);
@@ -46,30 +191,14 @@ export default function RecicladorDashboard() {
   const [disponible, setDisponible] = useState(true);
   const [routeInfo, setRouteInfo] = useState(null);
   const [navigationInstructions, setNavigationInstructions] = useState(null);
-  const [directionsResponse, setDirectionsResponse] = useState(null);
-  
+  const mapRef = useRef(null); // ✅ NUEVO: Referencia al mapa
+
   // UI States
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [filtroMaterial, setFiltroMaterial] = useState('Todos');
 
   const socketRef = useRef(null);
   const watchIdRef = useRef(null);
-  const mapRef = useRef(null);
-
-  // ✅ CARGAR GOOGLE MAPS CON API KEY CORRECTA
-  const { isLoaded, loadError } = useJsApiLoader({
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
-    libraries: GOOGLE_MAPS_LIBRARIES
-  });
-
-  // ✅ VALIDAR API KEY AL CARGAR
-  useEffect(() => {
-    if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY) {
-      console.error('❌ VITE_GOOGLE_MAPS_API_KEY no está configurada en .env');
-    } else {
-      console.log('✅ Google Maps API Key configurada');
-    }
-  }, []);
 
   // --- 1. AUTENTICACIÓN Y CARGA USUARIO ---
   useEffect(() => {
@@ -134,7 +263,7 @@ export default function RecicladorDashboard() {
     };
   }, [userId, solicitudActiva]);
 
-  // --- 3. GEOLOCALIZACIÓN ---
+  // --- 3. GEOLOCALIZACIÓN CON ACTUALIZACIÓN DE RUTA EN TIEMPO REAL ---
   useEffect(() => {
     if (!navigator.geolocation) return;
     
@@ -154,6 +283,22 @@ export default function RecicladorDashboard() {
         };
         setMiUbicacion(nuevaUbicacion);
 
+        // ✅ ACTUALIZAR DISTANCIA Y TIEMPO en tiempo real
+        if (solicitudActiva && routeInfo) {
+          const distanciaRestante = calcularDistancia(
+            nuevaUbicacion.lat, 
+            nuevaUbicacion.lng,
+            solicitudActiva.latitud,
+            solicitudActiva.longitud
+          );
+          
+          setRouteInfo(prev => ({
+            ...prev,
+            distance: distanciaRestante,
+            time: Math.ceil(parseFloat(distanciaRestante) * 3)
+          }));
+        }
+
         // Enviar ubicación via WebSocket
         if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN && solicitudActiva) {
           socketRef.current.send(JSON.stringify({
@@ -163,6 +308,7 @@ export default function RecicladorDashboard() {
             solicitud_id: solicitudActiva.id,
             reciclador_id: userId,
           }));
+          console.log('📍 Ubicación enviada:', nuevaUbicacion);
         }
       },
       (error) => console.error('Error GPS:', error),
@@ -176,70 +322,19 @@ export default function RecicladorDashboard() {
     return () => {
       if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current);
     };
-  }, [solicitudActiva, userId]);
+  }, [solicitudActiva, userId, routeInfo]);
 
-  // ✅ FUNCIÓN PARA CALCULAR RUTA CON GOOGLE DIRECTIONS API (con mejor manejo de errores)
-  const calcularRutaGoogle = async (origen, destino) => {
-    if (!window.google) {
-      console.error('❌ Google Maps no está cargado');
-      return;
-    }
-
-    const directionsService = new window.google.maps.DirectionsService();
-
-    try {
-      const resultado = await directionsService.route({
-        origin: new window.google.maps.LatLng(origen.lat, origen.lng),
-        destination: new window.google.maps.LatLng(destino.latitud, destino.longitud),
-        travelMode: window.google.maps.TravelMode.DRIVING,
-        optimizeWaypoints: true,
-      });
-
-      console.log('🗺️ Ruta de Google Maps encontrada');
-      
-      setDirectionsResponse(resultado);
-
-      const route = resultado.routes[0];
-      const leg = route.legs[0];
-
-      setRouteInfo({
-        distance: (leg.distance.value / 1000).toFixed(1),
-        time: Math.round(leg.duration.value / 60),
-      });
-
-      if (leg.steps && leg.steps.length > 0) {
-        const primerPaso = leg.steps[0];
-        setNavigationInstructions({
-          text: primerPaso.instructions.replace(/<[^>]*>/g, ''),
-          distance: (primerPaso.distance.value / 1000).toFixed(2),
-          type: primerPaso.maneuver || 'straight',
-          allInstructions: leg.steps.slice(0, 3).map(step => ({
-            text: step.instructions.replace(/<[^>]*>/g, ''),
-            distance: step.distance.value,
-            type: step.maneuver || 'straight'
-          }))
-        });
-      }
-    } catch (error) {
-      console.error('❌ Error calculando ruta:', error);
-      
-      // ✅ MENSAJES DE ERROR ESPECÍFICOS
-      if (error.message.includes('REQUEST_DENIED')) {
-        alert(
-          '⚠️ Error de permisos de Google Maps\n\n' +
-          'Pasos para solucionar:\n' +
-          '1. Habilita "Directions API" en Google Cloud\n' +
-          '2. Configura restricciones de dominio\n' +
-          '3. Verifica que la facturación esté activa'
-        );
-      } else if (error.message.includes('OVER_QUERY_LIMIT')) {
-        alert('⚠️ Se superó el límite de consultas diarias. Intenta más tarde.');
-      } else if (error.message.includes('ZERO_RESULTS')) {
-        alert('⚠️ No se encontró una ruta entre estos puntos.');
-      } else {
-        alert('Error al calcular la ruta. Revisa tu conexión.');
-      }
-    }
+  // ✅ FUNCIÓN para calcular distancia
+  const calcularDistancia = (lat1, lon1, lat2, lon2) => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return (R * c).toFixed(2);
   };
 
   // --- 4. CARGA INICIAL ---
@@ -277,9 +372,8 @@ export default function RecicladorDashboard() {
   };
 
   const centrarEnMi = () => {
-    if (miUbicacion && mapRef.current) {
-      mapRef.current.panTo(miUbicacion);
-      mapRef.current.setZoom(15);
+    if (miUbicacion) {
+      setCentrarMapaTrigger([miUbicacion.lat, miUbicacion.lng]);
     }
   };
 
@@ -303,11 +397,6 @@ export default function RecicladorDashboard() {
       setSolicitudActiva(solicitud);
       setSolicitudesPendientes((prev) => prev.filter((s) => s.id !== solicitud.id));
       setDisponible(false);
-      
-      // ✅ CALCULAR RUTA CON GOOGLE MAPS
-      if (miUbicacion) {
-        await calcularRutaGoogle(miUbicacion, solicitud);
-      }
       
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
         socketRef.current.send(
@@ -333,6 +422,7 @@ export default function RecicladorDashboard() {
 
       if (!response.ok) throw new Error('Error al completar');
 
+      // ✅ NOTIFICAR VIA WEBSOCKET
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
         socketRef.current.send(
           JSON.stringify({ 
@@ -342,16 +432,24 @@ export default function RecicladorDashboard() {
         );
       }
 
+      // ✅ LIMPIAR MAPA MANUALMENTE (forzar limpieza)
+      if (mapRef.current) {
+        mapRef.current.eachLayer((layer) => {
+          if (layer instanceof L.LayerGroup || layer instanceof L.Polyline) {
+            mapRef.current.removeLayer(layer);
+          }
+        });
+      }
+
       alert('¡Excelente trabajo! +50 Puntos 🌟');
       
-      // ✅ LIMPIAR ESTADO
-      setDirectionsResponse(null);
+      // ✅ LIMPIAR ESTADO (orden importante)
       setNavigationInstructions(null);
       setRouteInfo(null);
       setSolicitudActiva(null);
       setDisponible(true);
       
-      console.log('✅ Servicio completado');
+      console.log('✅ Servicio completado, mapa limpiado');
     } catch (error) {
       console.error(error);
       alert('Error al completar el servicio');
@@ -364,33 +462,8 @@ export default function RecicladorDashboard() {
     return s.tipo_material.toLowerCase().includes(filtroMaterial.toLowerCase());
   });
 
-  // --- RENDER DE ERROR ---
-  if (loadError) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-red-50">
-        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md">
-          <h2 className="text-2xl font-bold text-red-600 mb-4">Error cargando Google Maps</h2>
-          <p className="text-gray-600 mb-4">
-            No se pudo cargar el script de Google Maps. Verifica:
-          </p>
-          <ul className="list-disc list-inside text-sm text-gray-600 space-y-2">
-            <li>Que tengas un API Key válido en <code className="bg-gray-100 px-2 py-1 rounded">.env</code></li>
-            <li>Que hayas habilitado Maps JavaScript API en Google Cloud</li>
-            <li>Que no tengas restricciones de dominio activas</li>
-          </ul>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-6 w-full bg-red-600 text-white py-3 rounded-lg hover:bg-red-700"
-          >
-            Reintentar
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   // --- RENDER DE CARGA ---
-  if (!isLoaded || !userId || !miUbicacion) {
+  if (!userId || !miUbicacion) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
         <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-green-600 mb-4"></div>
@@ -402,83 +475,84 @@ export default function RecicladorDashboard() {
   return (
     <div className="h-screen w-full relative overflow-hidden bg-gray-100 font-sans">
       
-      {/* ================= GOOGLE MAPS ================= */}
+      {/* ================= MAPA ================= */}
       <div className="absolute inset-0 z-0">
-        <GoogleMap
-          mapContainerStyle={mapContainerStyle}
-          center={miUbicacion}
-          zoom={15}
-          options={mapOptions}
-          onLoad={(map) => { mapRef.current = map; }}
+        <MapContainer 
+          center={[miUbicacion.lat, miUbicacion.lng]} 
+          zoom={15} 
+          className="h-full w-full" 
+          zoomControl={false}
+          ref={mapRef}
+          whenCreated={(mapInstance) => { mapRef.current = mapInstance; }}
         >
-          {/* Marker de mi ubicación */}
-          <Marker
-            position={miUbicacion}
-            icon={{
-              url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-              scaledSize: new window.google.maps.Size(25, 41),
-            }}
+          <TileLayer
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+            attribution='&copy; CARTO'
           />
+          
+          {centrarMapaTrigger && <MapRecenter center={centrarMapaTrigger} />}
 
-          {/* Markers de solicitudes pendientes */}
+          <Marker position={[miUbicacion.lat, miUbicacion.lng]} icon={recyclerIcon}>
+            <Popup className="custom-popup">
+              <div className="text-center">
+                <p className="font-bold text-green-700 text-sm">👋 ¡Yo!</p>
+              </div>
+            </Popup>
+          </Marker>
+
           {!solicitudActiva && solicitudesFiltradas.map((solicitud) => (
-            <Marker
-              key={solicitud.id}
-              position={{ lat: solicitud.latitud, lng: solicitud.longitud }}
-              icon={{
-                url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-                scaledSize: new window.google.maps.Size(25, 41),
-              }}
-              onClick={() => {
-                // Mostrar info
-                const infoWindow = new window.google.maps.InfoWindow({
-                  content: `
-                    <div style="padding: 8px;">
-                      <h3 style="font-weight: bold; margin-bottom: 8px;">${solicitud.tipo_material}</h3>
-                      <p style="margin-bottom: 8px;">${solicitud.cantidad} kg</p>
-                      <button 
-                        onclick="window.aceptarSolicitud(${solicitud.id})"
-                        style="background: #10b981; color: white; padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; width: 100%;"
-                      >
-                        Aceptar
-                      </button>
-                    </div>
-                  `
-                });
-                infoWindow.open(mapRef.current, this);
-              }}
-            />
+            <Marker key={solicitud.id} position={[solicitud.latitud, solicitud.longitud]} icon={userIcon}>
+              <Popup>
+                <div className="p-1 max-w-[200px]">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="bg-green-100 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full border border-green-200">
+                      {solicitud.tipo_material}
+                    </span>
+                    <span className="text-xs text-gray-500">{solicitud.cantidad}kg</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => ignorarSolicitud(solicitud.id)}
+                      className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold py-2 rounded-lg transition-colors"
+                    >
+                      Ignorar
+                    </button>
+                    <button 
+                      onClick={() => aceptarSolicitud(solicitud)}
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg transition-colors shadow-sm"
+                    >
+                      Aceptar
+                    </button>
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
           ))}
 
-          {/* Marker de destino */}
-          {solicitudActiva && (
-            <Marker
-              position={{ lat: solicitudActiva.latitud, lng: solicitudActiva.longitud }}
-              icon={{
-                url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-                scaledSize: new window.google.maps.Size(25, 41),
-              }}
-            />
+          {/* ✅ RUTA ACTIVA - Solo renderizar si solicitudActiva existe */}
+          {solicitudActiva && miUbicacion && routeInfo && (
+            <>
+              <Marker position={[solicitudActiva.latitud, solicitudActiva.longitud]} icon={userIcon}>
+                <Popup>
+                  <div className="text-center">
+                    <p className="font-bold text-blue-700">🎯 Destino</p>
+                    <p className="text-xs text-gray-600">{solicitudActiva.tipo_material}</p>
+                  </div>
+                </Popup>
+              </Marker>
+              <RoutingMachine
+                key={`route-${solicitudActiva.id}-${routeInfo.distance}`}
+                start={[miUbicacion.lat, miUbicacion.lng]}
+                end={[solicitudActiva.latitud, solicitudActiva.longitud]}
+                onRouteFound={setRouteInfo}
+                onInstructionsUpdate={setNavigationInstructions}
+              />
+            </>
           )}
-
-          {/* ✅ RUTA CON GOOGLE DIRECTIONS */}
-          {directionsResponse && (
-            <DirectionsRenderer
-              directions={directionsResponse}
-              options={{
-                polylineOptions: {
-                  strokeColor: '#10b981',
-                  strokeWeight: 6,
-                  strokeOpacity: 0.8,
-                },
-                suppressMarkers: true,
-              }}
-            />
-          )}
-        </GoogleMap>
+        </MapContainer>
       </div>
 
-      {/* ✅ PANEL DE NAVEGACIÓN GPS */}
+      {/* ✅ PANEL DE NAVEGACIÓN GPS EN VIVO (FLOTANTE) */}
       {solicitudActiva && navigationInstructions && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[999] bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-4 max-w-md w-11/12 border-2 border-green-500">
           <div className="flex items-center gap-4">
@@ -511,9 +585,9 @@ export default function RecicladorDashboard() {
         </div>
       )}
 
-      {/* ================= UI (SIDEBAR) ================= */}
+      {/* ================= UI FLOTANTE (SIDEBAR) ================= */}
       
-      {/* Botón Menu Móvil */}
+      {/* 1. Botón Menu Móvil */}
       <button 
         onClick={() => setSidebarOpen(!sidebarOpen)}
         className="absolute top-4 left-4 z-[1000] bg-white p-3 rounded-xl shadow-lg md:hidden text-gray-700 hover:bg-gray-50 transition-colors"
@@ -521,7 +595,7 @@ export default function RecicladorDashboard() {
         {sidebarOpen ? <X size={24}/> : <Menu size={24}/>}
       </button>
 
-      {/* Botón "Centrar en Mí" */}
+      {/* 2. Botón "Centrar en Mí" (Flotante) */}
       <button 
         onClick={centrarEnMi}
         className="absolute bottom-6 right-6 z-[1000] bg-white p-3 rounded-full shadow-xl hover:bg-green-50 text-gray-700 hover:text-green-600 transition-all transform hover:scale-110"
@@ -710,9 +784,3 @@ export default function RecicladorDashboard() {
     </div>
   );
 }
-
-// ✅ Exponer función para InfoWindow
-window.aceptarSolicitud = (id) => {
-  const solicitud = solicitudesPendientes.find(s => s.id === id);
-  if (solicitud) aceptarSolicitud(solicitud);
-};
