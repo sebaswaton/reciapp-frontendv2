@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GoogleMap, useJsApiLoader, Marker, DirectionsRenderer } from '@react-google-maps/api'; // ✅ Cambio
+import { GoogleMap, useJsApiLoader, Marker, DirectionsRenderer, Circle } from '@react-google-maps/api'; // ✅ Cambio
 import { me } from '../api/auth';
 
 const mapContainerStyle = {
@@ -327,6 +327,21 @@ export default function SolicitarRecoleccion() {
             }}
             onLoad={onMapLoad}
           >
+            {/* Círculo pulsante alrededor del ciudadano (solo cuando hay reciclador en camino) */}
+            {recicladorUbicacion && (
+              <Circle
+                center={ubicacion}
+                radius={100}
+                options={{
+                  fillColor: '#3B82F6',
+                  fillOpacity: 0.2,
+                  strokeColor: '#3B82F6',
+                  strokeOpacity: 0.5,
+                  strokeWeight: 2,
+                }}
+              />
+            )}
+
             {/* Marcador del ciudadano */}
             <Marker
               position={ubicacion}
@@ -337,19 +352,21 @@ export default function SolicitarRecoleccion() {
               title="Tu ubicación"
             />
 
-            {/* Marcador del reciclador */}
+            {/* Marcador del reciclador con animación */}
             {recicladorUbicacion && (
               <Marker
                 position={recicladorUbicacion}
                 icon={{
                   url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-                  scaledSize: new window.google.maps.Size(25, 41),
+                  scaledSize: new window.google.maps.Size(35, 55),
+                  anchor: new window.google.maps.Point(17, 55),
                 }}
                 title="Reciclador en camino"
+                animation={window.google.maps.Animation.DROP}
               />
             )}
 
-            {/* Ruta del reciclador */}
+            {/* Ruta del reciclador al ciudadano */}
             {directions && (
               <DirectionsRenderer
                 directions={directions}
@@ -357,9 +374,11 @@ export default function SolicitarRecoleccion() {
                   suppressMarkers: true,
                   polylineOptions: {
                     strokeColor: '#10b981',
-                    strokeWeight: 6,
-                    strokeOpacity: 0.8,
-                  }
+                    strokeWeight: 7,
+                    strokeOpacity: 0.9,
+                    geodesic: true,
+                  },
+                  preserveViewport: true, // ✅ Evita que la ruta fuerce zoom
                 }}
               />
             )}
@@ -444,25 +463,46 @@ export default function SolicitarRecoleccion() {
             </div>
           ) : (
             // Estado de tracking
-            <div className="bg-white rounded-t-3xl shadow-2xl p-6">
+            <div className="bg-white rounded-t-3xl shadow-2xl p-6 max-h-[85vh] overflow-y-auto">
               <div className="text-center">
-                <div className="animate-pulse mb-4">
-                  <div className="w-16 h-16 bg-green-100 rounded-full mx-auto flex items-center justify-center">
-                    <svg
-                      className="w-8 h-8 text-green-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
+                {/* Icono animado según el estado */}
+                {solicitudActiva.estado === 'pendiente' ? (
+                  <div className="mb-4">
+                    <div className="w-20 h-20 bg-gradient-to-br from-yellow-100 to-yellow-200 rounded-full mx-auto flex items-center justify-center animate-pulse">
+                      <svg
+                        className="w-10 h-10 text-yellow-600 animate-spin"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                        />
+                      </svg>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="mb-4">
+                    <div className="w-20 h-20 bg-gradient-to-br from-green-100 to-emerald-200 rounded-full mx-auto flex items-center justify-center shadow-lg">
+                      <svg
+                        className="w-10 h-10 text-green-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                )}
                 
                 <h3 className="text-xl font-bold text-green-700 mb-2">
                   {solicitudActiva.estado === 'pendiente'
@@ -476,24 +516,52 @@ export default function SolicitarRecoleccion() {
                     : 'El reciclador está llegando a tu ubicación'}
                 </p>
                 
-                {/* ✅ TRACKING CON GOOGLE MAPS */}
+                {/* ✅ TRACKING EN TIEMPO REAL ESTILO UBER */}
                 {recicladorUbicacion && distanciaEstimada && (
-                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 mb-4 border-2 border-green-200">
-                    <div className="flex items-center justify-center gap-4">
-                      <div className="text-center">
-                        <p className="text-3xl font-bold text-green-600">{distanciaEstimada}</p>
-                        <p className="text-xs text-gray-500 uppercase">km de distancia</p>
+                  <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-5 mb-4 shadow-xl">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="relative">
+                          <div className="animate-ping absolute h-4 w-4 bg-white rounded-full opacity-75"></div>
+                          <div className="relative h-4 w-4 bg-white rounded-full"></div>
+                        </div>
+                        <p className="text-white font-semibold text-sm">En camino a tu ubicación</p>
                       </div>
-                      <div className="w-px h-12 bg-green-300"></div>
-                      <div className="text-center">
-                        <p className="text-3xl font-bold text-green-600">~{tiempoEstimado}</p>
-                        <p className="text-xs text-gray-500 uppercase">min aprox</p>
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    
+                    <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 mb-3">
+                      <div className="flex items-center justify-around">
+                        <div className="text-center">
+                          <p className="text-4xl font-black text-white drop-shadow-lg">{tiempoEstimado}</p>
+                          <p className="text-xs text-white/90 font-medium uppercase tracking-wide">minutos</p>
+                        </div>
+                        <div className="w-px h-16 bg-white/40"></div>
+                        <div className="text-center">
+                          <p className="text-4xl font-black text-white drop-shadow-lg">{distanciaEstimada}</p>
+                          <p className="text-xs text-white/90 font-medium uppercase tracking-wide">kilómetros</p>
+                        </div>
                       </div>
                     </div>
-                    <div className="mt-3 flex items-center justify-center gap-2 text-green-700">
-                      <div className="animate-ping h-2 w-2 bg-green-500 rounded-full"></div>
-                      <p className="text-sm font-semibold">Ubicación actualizada en tiempo real</p>
+
+                    <div className="flex items-center justify-center gap-2 text-white/95">
+                      <svg className="w-4 h-4 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                      </svg>
+                      <p className="text-sm font-semibold">Ubicación GPS actualizada en vivo</p>
                     </div>
+
+                    {/* Alerta cuando el reciclador está muy cerca */}
+                    {parseFloat(distanciaEstimada) < 1.0 && (
+                      <div className="mt-3 bg-yellow-400 text-yellow-900 rounded-lg p-3 flex items-center gap-2 animate-pulse">
+                        <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                        <p className="text-sm font-bold">¡El reciclador está muy cerca! Prepara tus materiales</p>
+                      </div>
+                    )}
                   </div>
                 )}
 
