@@ -178,9 +178,12 @@ export default function RecicladorDashboard() {
     };
   }, [solicitudActiva, userId]);
 
-  // ✅ FUNCIÓN PARA CALCULAR RUTA CON GOOGLE DIRECTIONS API
+  // ✅ FUNCIÓN PARA CALCULAR RUTA CON GOOGLE DIRECTIONS API (con mejor manejo de errores)
   const calcularRutaGoogle = async (origen, destino) => {
-    if (!window.google) return;
+    if (!window.google) {
+      console.error('❌ Google Maps no está cargado');
+      return;
+    }
 
     const directionsService = new window.google.maps.DirectionsService();
 
@@ -196,7 +199,6 @@ export default function RecicladorDashboard() {
       
       setDirectionsResponse(resultado);
 
-      // Extraer información de la ruta
       const route = resultado.routes[0];
       const leg = route.legs[0];
 
@@ -205,11 +207,10 @@ export default function RecicladorDashboard() {
         time: Math.round(leg.duration.value / 60),
       });
 
-      // Extraer instrucciones
       if (leg.steps && leg.steps.length > 0) {
         const primerPaso = leg.steps[0];
         setNavigationInstructions({
-          text: primerPaso.instructions.replace(/<[^>]*>/g, ''), // Remover HTML
+          text: primerPaso.instructions.replace(/<[^>]*>/g, ''),
           distance: (primerPaso.distance.value / 1000).toFixed(2),
           type: primerPaso.maneuver || 'straight',
           allInstructions: leg.steps.slice(0, 3).map(step => ({
@@ -221,7 +222,23 @@ export default function RecicladorDashboard() {
       }
     } catch (error) {
       console.error('❌ Error calculando ruta:', error);
-      alert('Error al calcular la ruta con Google Maps');
+      
+      // ✅ MENSAJES DE ERROR ESPECÍFICOS
+      if (error.message.includes('REQUEST_DENIED')) {
+        alert(
+          '⚠️ Error de permisos de Google Maps\n\n' +
+          'Pasos para solucionar:\n' +
+          '1. Habilita "Directions API" en Google Cloud\n' +
+          '2. Configura restricciones de dominio\n' +
+          '3. Verifica que la facturación esté activa'
+        );
+      } else if (error.message.includes('OVER_QUERY_LIMIT')) {
+        alert('⚠️ Se superó el límite de consultas diarias. Intenta más tarde.');
+      } else if (error.message.includes('ZERO_RESULTS')) {
+        alert('⚠️ No se encontró una ruta entre estos puntos.');
+      } else {
+        alert('Error al calcular la ruta. Revisa tu conexión.');
+      }
     }
   };
 
