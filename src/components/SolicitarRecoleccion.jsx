@@ -89,14 +89,8 @@ export default function SolicitarRecoleccion() {
         }));
         alert('¡Un reciclador aceptó tu solicitud! Está en camino 🚗');
       } else if (data.type === 'ubicacion_reciclador') {
-        // ✅ ACTUALIZAR UBICACIÓN DEL RECICLADOR EN TIEMPO REAL
         const nuevaUbicacion = { lat: data.lat, lng: data.lng };
-        console.log('📍 Ubicación reciclador actualizada:', nuevaUbicacion);
-        
-        // Solo actualizar si esta solicitud le corresponde
-        if (solicitudActiva && data.solicitud_id === solicitudActiva.id) {
-          setRecicladorUbicacion(nuevaUbicacion);
-        }
+        setRecicladorUbicacion(nuevaUbicacion);
       } else if (data.type === 'solicitud_completada') {
         alert('¡Recolección completada! Gracias por reciclar 🌱');
         setSolicitudActiva(null);
@@ -114,7 +108,7 @@ export default function SolicitarRecoleccion() {
         ws.close();
       }
     };
-  }, [userId, solicitudActiva]); // ✅ Agregar solicitudActiva como dependencia
+  }, [userId]);
 
   // ✅ CALCULAR RUTA CON GOOGLE DIRECTIONS API (mejorado)
   const calcularRutaGoogle = useCallback(() => {
