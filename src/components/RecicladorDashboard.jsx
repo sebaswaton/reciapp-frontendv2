@@ -1,9 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
-import L from 'leaflet';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { GoogleMap, LoadScript, Marker, DirectionsRenderer } from '@react-google-maps/api';
 import { me } from '../api/auth';
 import { 
-  MapPin, 
   Navigation, 
   Trash2, 
   User, 
@@ -16,182 +14,38 @@ import {
   Leaf
 } from 'lucide-react';
 
-// --- CONFIGURACIÓN DE ICONOS MAPA ---
-const userIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
+const mapContainerStyle = {
+  width: '100%',
+  height: '100%'
+};
 
-const recyclerIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
-
-// ✅ COMPONENTE CON MAPBOX DIRECTIONS API (con limpieza mejorada)
-function RoutingMachine({ start, end, onRouteFound, onInstructionsUpdate }) {
-  const map = useMap();
-  const polylineRef = useRef(null);
-
-  useEffect(() => {
-    if (!start || !end || !map) {
-      // ✅ LIMPIAR SI NO HAY COORDENADAS
-      if (polylineRef.current && map) {
-        map.removeLayer(polylineRef.current);
-        polylineRef.current = null;
-      }
-      return;
+const mapOptions = {
+  zoomControl: false,
+  mapTypeControl: false,
+  streetViewControl: false,
+  fullscreenControl: false,
+  styles: [
+    {
+      featureType: 'poi',
+      elementType: 'labels',
+      stylers: [{ visibility: 'off' }]
     }
-    
-    // Limpiar ruta anterior
-    if (polylineRef.current) {
-      map.removeLayer(polylineRef.current);
-      polylineRef.current = null;
-    }
-
-    const fetchRoute = async () => {
-      const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
-      
-      if (!mapboxToken || mapboxToken === 'pk.tu_token_aqui') {
-        console.error('❌ Token de Mapbox no configurado');
-        alert('Por favor configura tu token de Mapbox en el archivo .env\n\nVITE_MAPBOX_TOKEN=pk.tu_token_real');
-        return;
-      }
-
-      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${start[1]},${start[0]};${end[1]},${end[0]}?steps=true&banner_instructions=true&geometries=geojson&access_token=${mapboxToken}`;
-      
-      console.log('📍 Calculando ruta...');
-      
-      try {
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error('❌ Error de Mapbox:', errorData);
-          throw new Error(`Error ${response.status}: ${errorData.message || 'Error al calcular ruta'}`);
-        }
-        
-        const data = await response.json();
-        
-        if (data.routes && data.routes.length > 0) {
-          const route = data.routes[0];
-          
-          console.log('🗺️ Ruta de Mapbox encontrada');
-          
-          const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-          
-          const polylineLayers = [
-            L.polyline(coordinates, {
-              color: '#000000',
-              weight: 12,
-              opacity: 0.15,
-              lineCap: 'round',
-              lineJoin: 'round'
-            }),
-            L.polyline(coordinates, {
-              color: '#047857',
-              weight: 10,
-              opacity: 0.8,
-              lineCap: 'round',
-              lineJoin: 'round'
-            }),
-            L.polyline(coordinates, {
-              color: '#10b981',
-              weight: 7,
-              opacity: 1,
-              lineCap: 'round',
-              lineJoin: 'round'
-            }),
-            L.polyline(coordinates, {
-              color: '#34d399',
-              weight: 4,
-              opacity: 0.7,
-              lineCap: 'round',
-              lineJoin: 'round'
-            })
-          ];
-
-          const layerGroup = L.layerGroup(polylineLayers).addTo(map);
-          polylineRef.current = layerGroup;
-          
-          const bounds = L.latLngBounds(coordinates);
-          map.fitBounds(bounds, { padding: [50, 50] });
-          
-          if (onRouteFound) {
-            onRouteFound({
-              distance: (route.distance / 1000).toFixed(1),
-              time: Math.round(route.duration / 60),
-            });
-          }
-          
-          if (onInstructionsUpdate && route.legs && route.legs[0].steps) {
-            const steps = route.legs[0].steps;
-            console.log('📋 Total instrucciones:', steps.length);
-            
-            const proximoPaso = steps[0];
-            onInstructionsUpdate({
-              text: proximoPaso.maneuver.instruction || 'Continúa recto',
-              distance: (proximoPaso.distance / 1000).toFixed(2),
-              type: proximoPaso.maneuver.type,
-              allInstructions: steps.slice(0, 3).map(step => ({
-                text: step.maneuver.instruction,
-                distance: step.distance,
-                type: step.maneuver.type
-              }))
-            });
-            
-            console.log('✅ Instrucciones de Mapbox cargadas');
-          }
-        } else {
-          throw new Error('No se encontró ninguna ruta');
-        }
-      } catch (error) {
-        console.error('❌ Error obteniendo ruta de Mapbox:', error);
-        alert(`Error al calcular la ruta:\n${error.message}\n\nVerifica:\n1. Tu token de Mapbox en .env\n2. Tu conexión a internet\n3. Que las coordenadas sean válidas`);
-      }
-    };
-    
-    fetchRoute();
-
-    // ✅ CLEANUP: Limpiar cuando se desmonta el componente
-    return () => {
-      if (polylineRef.current && map) {
-        console.log('🧹 Limpiando ruta del mapa');
-        map.removeLayer(polylineRef.current);
-        polylineRef.current = null;
-      }
-    };
-  }, [start, end, map, onRouteFound, onInstructionsUpdate]);
-
-  return null;
-}
-
-// --- COMPONENTE PARA CENTRAR MAPA (CORREGIDO ✅) ---
-function MapRecenter({ center }) {
-  const map = useMap();
-  useEffect(() => {
-    if (center) map.setView(center, map.getZoom());
-  }, [center, map]);
-  return null;
-}
+  ]
+};
 
 export default function RecicladorDashboard() {
   // --- ESTADOS ---
   const [userId, setUserId] = useState(null);
   const [userData, setUserData] = useState(null);
   const [miUbicacion, setMiUbicacion] = useState(null);
-  const [centrarMapaTrigger, setCentrarMapaTrigger] = useState(null);
   
   const [solicitudesPendientes, setSolicitudesPendientes] = useState([]);
   const [solicitudActiva, setSolicitudActiva] = useState(null);
   
   const [disponible, setDisponible] = useState(true);
+  const [directions, setDirections] = useState(null);
   const [routeInfo, setRouteInfo] = useState(null);
   const [navigationInstructions, setNavigationInstructions] = useState(null);
-  const mapRef = useRef(null); // ✅ NUEVO: Referencia al mapa
 
   // UI States
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -199,6 +53,8 @@ export default function RecicladorDashboard() {
 
   const socketRef = useRef(null);
   const watchIdRef = useRef(null);
+  const mapRef = useRef(null);
+  const directionsService = useRef(null);
 
   // --- 1. AUTENTICACIÓN Y CARGA USUARIO ---
   useEffect(() => {
@@ -221,17 +77,12 @@ export default function RecicladorDashboard() {
     const ws = new WebSocket(`${wsUrl}/ws/${userId}`);
     socketRef.current = ws;
 
-    ws.onopen = () => {
-      console.log('WebSocket conectado ✅');
-      console.log('User ID:', userId);
-    };
-
+    ws.onopen = () => console.log('WebSocket conectado ✅');
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       console.log('Mensaje recibido:', data);
       
       if (data.type === 'nueva_solicitud') {
-        console.log('Nueva solicitud recibida:', data.solicitud);
         setSolicitudesPendientes((prev) => {
           if (prev.some(s => s.id === data.solicitud.id)) return prev;
           return [...prev, data.solicitud];
@@ -240,15 +91,14 @@ export default function RecicladorDashboard() {
           new Notification('♻️ ¡Nueva oportunidad!', { body: 'Hay material reciclable cerca.' });
         }
       } else if (data.type === 'solicitud_cancelada') {
-        console.log('Solicitud cancelada:', data.solicitud_id);
-        // Remover de pendientes
         setSolicitudesPendientes((prev) => prev.filter(s => s.id !== data.solicitud_id));
-        // Si es la activa, resetear
         if (solicitudActiva?.id === data.solicitud_id) {
           alert('El ciudadano ha cancelado la solicitud');
           setSolicitudActiva(null);
           setDisponible(true);
+          setDirections(null);
           setRouteInfo(null);
+          setNavigationInstructions(null);
         }
       }
     };
@@ -257,9 +107,7 @@ export default function RecicladorDashboard() {
     ws.onclose = () => console.log('WebSocket cerrado ❌');
 
     return () => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      }
+      if (ws.readyState === WebSocket.OPEN) ws.close();
     };
   }, [userId, solicitudActiva]);
 
@@ -269,8 +117,7 @@ export default function RecicladorDashboard() {
     
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setMiUbicacion(coords);
+        setMiUbicacion({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       },
       (err) => console.error(err)
     );
@@ -283,7 +130,6 @@ export default function RecicladorDashboard() {
         };
         setMiUbicacion(nuevaUbicacion);
 
-        // ✅ ACTUALIZAR DISTANCIA Y TIEMPO en tiempo real
         if (solicitudActiva && routeInfo) {
           const distanciaRestante = calcularDistancia(
             nuevaUbicacion.lat, 
@@ -299,7 +145,6 @@ export default function RecicladorDashboard() {
           }));
         }
 
-        // Enviar ubicación via WebSocket
         if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN && solicitudActiva) {
           socketRef.current.send(JSON.stringify({
             type: 'ubicacion_reciclador',
@@ -308,15 +153,10 @@ export default function RecicladorDashboard() {
             solicitud_id: solicitudActiva.id,
             reciclador_id: userId,
           }));
-          console.log('📍 Ubicación enviada:', nuevaUbicacion);
         }
       },
       (error) => console.error('Error GPS:', error),
-      { 
-        enableHighAccuracy: true,
-        timeout: 5000,
-        maximumAge: 0
-      }
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
     );
 
     return () => {
@@ -324,7 +164,58 @@ export default function RecicladorDashboard() {
     };
   }, [solicitudActiva, userId, routeInfo]);
 
-  // ✅ FUNCIÓN para calcular distancia
+  // ✅ CALCULAR RUTA CON GOOGLE DIRECTIONS API
+  const calcularRuta = useCallback(() => {
+    if (!solicitudActiva || !miUbicacion || !directionsService.current) return;
+
+    const origin = new window.google.maps.LatLng(miUbicacion.lat, miUbicacion.lng);
+    const destination = new window.google.maps.LatLng(solicitudActiva.latitud, solicitudActiva.longitud);
+
+    directionsService.current.route(
+      {
+        origin: origin,
+        destination: destination,
+        travelMode: window.google.maps.TravelMode.DRIVING,
+      },
+      (result, status) => {
+        if (status === window.google.maps.DirectionsStatus.OK) {
+          console.log('🗺️ Ruta de Google Maps encontrada');
+          setDirections(result);
+
+          const route = result.routes[0];
+          const leg = route.legs[0];
+
+          setRouteInfo({
+            distance: (leg.distance.value / 1000).toFixed(1),
+            time: Math.round(leg.duration.value / 60),
+          });
+
+          if (leg.steps && leg.steps.length > 0) {
+            const step = leg.steps[0];
+            setNavigationInstructions({
+              text: step.instructions.replace(/<[^>]*>/g, ''), // Remover HTML
+              distance: (step.distance.value / 1000).toFixed(2),
+              allInstructions: leg.steps.slice(0, 3).map(s => ({
+                text: s.instructions.replace(/<[^>]*>/g, ''),
+                distance: s.distance.value,
+              }))
+            });
+            console.log('✅ Instrucciones de Google Maps cargadas');
+          }
+        } else {
+          console.error('❌ Error calculando ruta:', status);
+        }
+      }
+    );
+  }, [solicitudActiva, miUbicacion]);
+
+  // Calcular ruta cuando se acepta solicitud
+  useEffect(() => {
+    if (solicitudActiva && miUbicacion && window.google) {
+      calcularRuta();
+    }
+  }, [solicitudActiva, miUbicacion, calcularRuta]);
+
   const calcularDistancia = (lat1, lon1, lat2, lon2) => {
     const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -350,30 +241,26 @@ export default function RecicladorDashboard() {
         
         if (response.ok) {
           const data = await response.json();
-          console.log('📋 Solicitudes cargadas:', data);
           setSolicitudesPendientes(data.filter((s) => s.estado === 'pendiente'));
-        } else {
-          console.error('❌ Error al cargar solicitudes:', response.status);
         }
       } catch (error) {
         console.error('❌ Error fetch solicitudes:', error);
       }
     };
     
-    if (userId) {
-      cargarSolicitudes();
-    }
+    if (userId) cargarSolicitudes();
   }, [userId]);
 
-  // --- FUNCIONES DE ACCIÓN ---
+  // --- FUNCIONES ---
   const cerrarSesion = () => {
     localStorage.removeItem('token');
     window.location.href = '/'; 
   };
 
   const centrarEnMi = () => {
-    if (miUbicacion) {
-      setCentrarMapaTrigger([miUbicacion.lat, miUbicacion.lng]);
+    if (miUbicacion && mapRef.current) {
+      mapRef.current.panTo(miUbicacion);
+      mapRef.current.setZoom(15);
     }
   };
 
@@ -397,9 +284,7 @@ export default function RecicladorDashboard() {
       setSolicitudActiva(solicitud);
       setSolicitudesPendientes((prev) => prev.filter((s) => s.id !== solicitud.id));
       setDisponible(false);
-      
-      // ✅ INICIALIZAR routeInfo inmediatamente
-      setRouteInfo({ distance: '0.0', time: 0 }); // Valores temporales
+      setRouteInfo({ distance: '0.0', time: 0 });
       
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
         socketRef.current.send(
@@ -425,7 +310,6 @@ export default function RecicladorDashboard() {
 
       if (!response.ok) throw new Error('Error al completar');
 
-      // ✅ NOTIFICAR VIA WEBSOCKET
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
         socketRef.current.send(
           JSON.stringify({ 
@@ -435,37 +319,31 @@ export default function RecicladorDashboard() {
         );
       }
 
-      // ✅ LIMPIAR MAPA MANUALMENTE (forzar limpieza)
-      if (mapRef.current) {
-        mapRef.current.eachLayer((layer) => {
-          if (layer instanceof L.LayerGroup || layer instanceof L.Polyline) {
-            mapRef.current.removeLayer(layer);
-          }
-        });
-      }
-
       alert('¡Excelente trabajo! +50 Puntos 🌟');
       
-      // ✅ LIMPIAR ESTADO (orden importante)
       setNavigationInstructions(null);
       setRouteInfo(null);
+      setDirections(null);
       setSolicitudActiva(null);
       setDisponible(true);
       
-      console.log('✅ Servicio completado, mapa limpiado');
+      console.log('✅ Servicio completado');
     } catch (error) {
       console.error(error);
       alert('Error al completar el servicio');
     }
   };
 
-  // --- LOGICA DE FILTRO ---
   const solicitudesFiltradas = solicitudesPendientes.filter(s => {
     if (filtroMaterial === 'Todos') return true;
     return s.tipo_material.toLowerCase().includes(filtroMaterial.toLowerCase());
   });
 
-  // --- RENDER DE CARGA ---
+  const onMapLoad = useCallback((map) => {
+    mapRef.current = map;
+    directionsService.current = new window.google.maps.DirectionsService();
+  }, []);
+
   if (!userId || !miUbicacion) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
@@ -478,84 +356,70 @@ export default function RecicladorDashboard() {
   return (
     <div className="h-screen w-full relative overflow-hidden bg-gray-100 font-sans">
       
-      {/* ================= MAPA ================= */}
+      {/* ================= GOOGLE MAPS ================= */}
       <div className="absolute inset-0 z-0">
-        <MapContainer 
-          center={[miUbicacion.lat, miUbicacion.lng]} 
-          zoom={15} 
-          className="h-full w-full" 
-          zoomControl={false}
-          ref={mapRef}
-          whenCreated={(mapInstance) => { mapRef.current = mapInstance; }}
-        >
-          <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-            attribution='&copy; CARTO'
-          />
-          
-          {centrarMapaTrigger && <MapRecenter center={centrarMapaTrigger} />}
+        <LoadScript googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}>
+          <GoogleMap
+            mapContainerStyle={mapContainerStyle}
+            center={miUbicacion}
+            zoom={15}
+            options={mapOptions}
+            onLoad={onMapLoad}
+          >
+            {/* Marcador del reciclador */}
+            <Marker
+              position={miUbicacion}
+              icon={{
+                url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+                scaledSize: new window.google.maps.Size(25, 41),
+              }}
+            />
 
-          <Marker position={[miUbicacion.lat, miUbicacion.lng]} icon={recyclerIcon}>
-            <Popup className="custom-popup">
-              <div className="text-center">
-                <p className="font-bold text-green-700 text-sm">👋 ¡Yo!</p>
-              </div>
-            </Popup>
-          </Marker>
-
-          {!solicitudActiva && solicitudesFiltradas.map((solicitud) => (
-            <Marker key={solicitud.id} position={[solicitud.latitud, solicitud.longitud]} icon={userIcon}>
-              <Popup>
-                <div className="p-1 max-w-[200px]">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="bg-green-100 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full border border-green-200">
-                      {solicitud.tipo_material}
-                    </span>
-                    <span className="text-xs text-gray-500">{solicitud.cantidad}kg</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => ignorarSolicitud(solicitud.id)}
-                      className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold py-2 rounded-lg transition-colors"
-                    >
-                      Ignorar
-                    </button>
-                    <button 
-                      onClick={() => aceptarSolicitud(solicitud)}
-                      className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg transition-colors shadow-sm"
-                    >
-                      Aceptar
-                    </button>
-                  </div>
-                </div>
-              </Popup>
-            </Marker>
-          ))}
-
-          {/* ✅ RUTA ACTIVA - Renderizar solo con solicitudActiva */}
-          {solicitudActiva && miUbicacion && (
-            <>
-              <Marker position={[solicitudActiva.latitud, solicitudActiva.longitud]} icon={userIcon}>
-                <Popup>
-                  <div className="text-center">
-                    <p className="font-bold text-blue-700">🎯 Destino</p>
-                    <p className="text-xs text-gray-600">{solicitudActiva.tipo_material}</p>
-                  </div>
-                </Popup>
-              </Marker>
-              <RoutingMachine
-                key={`route-${solicitudActiva.id}`}
-                start={[miUbicacion.lat, miUbicacion.lng]}
-                end={[solicitudActiva.latitud, solicitudActiva.longitud]}
-                onRouteFound={setRouteInfo}
-                onInstructionsUpdate={setNavigationInstructions}
+            {/* Marcadores de solicitudes pendientes */}
+            {!solicitudActiva && solicitudesFiltradas.map((solicitud) => (
+              <Marker
+                key={solicitud.id}
+                position={{ lat: solicitud.latitud, lng: solicitud.longitud }}
+                icon={{
+                  url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                  scaledSize: new window.google.maps.Size(25, 41),
+                }}
+                onClick={() => {
+                  // Mostrar info en sidebar o popup
+                }}
               />
-            </>
-          )}
-        </MapContainer>
+            ))}
+
+            {/* Marcador de destino y ruta */}
+            {solicitudActiva && (
+              <>
+                <Marker
+                  position={{ lat: solicitudActiva.latitud, lng: solicitudActiva.longitud }}
+                  icon={{
+                    url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+                    scaledSize: new window.google.maps.Size(25, 41),
+                  }}
+                />
+                {directions && (
+                  <DirectionsRenderer
+                    directions={directions}
+                    options={{
+                      suppressMarkers: true,
+                      polylineOptions: {
+                        strokeColor: '#10b981',
+                        strokeWeight: 6,
+                        strokeOpacity: 0.8,
+                      }
+                    }}
+                  />
+                )}
+              </>
+            )}
+          </GoogleMap>
+        </LoadScript>
       </div>
 
-      {/* ✅ PANEL DE NAVEGACIÓN GPS EN VIVO (FLOTANTE) */}
+      {/* ✅ PANEL DE NAVEGACIÓN GPS */}
       {solicitudActiva && navigationInstructions && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[999] bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-4 max-w-md w-11/12 border-2 border-green-500">
           <div className="flex items-center gap-4">
@@ -623,7 +487,6 @@ export default function RecicladorDashboard() {
               <div>
                 <h2 className="font-bold text-xl">{userData?.nombre || 'Reciclador'}</h2>
                 <div className="flex items-center gap-1 text-green-100 text-sm">
-                  {/* <Award size={14} />  <-- Icono removido si no está importado, o cámbialo por otro */}
                   <span className="font-medium">Nivel: Experto</span>
                 </div>
               </div>
