@@ -1,57 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
-import L from 'leaflet';
+import { GoogleMap, useJsApiLoader, Marker, DirectionsRenderer } from '@react-google-maps/api';
 import { me } from '../api/auth';
 
-// Fix iconos Leaflet
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl:
-    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl:
-    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl:
-    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-});
-
-const userIcon = new L.Icon({
-  iconUrl:
-    'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-  shadowUrl:
-    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
-
-const recyclerIcon = new L.Icon({
-  iconUrl:
-    'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-  shadowUrl:
-    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
-
-// Componente para actualizar vista del mapa
-function UpdateMapView({ center }) {
-  const map = useMap();
-  useEffect(() => {
-    if (center) {
-      map.setView(center, map.getZoom());
-    }
-  }, [center, map]);
-  return null;
-}
+const mapContainerStyle = {
+  width: '100%',
+  height: '100%'
+};
 
 export default function SolicitarRecoleccion() {
   const navigate = useNavigate();
   const [userId, setUserId] = useState(null);
   const [ubicacion, setUbicacion] = useState(null);
   const [recicladorUbicacion, setRecicladorUbicacion] = useState(null);
-  const [rutaPolyline, setRutaPolyline] = useState([]);
+  const [directionsResponse, setDirectionsResponse] = useState(null);
   const [distanciaEstimada, setDistanciaEstimada] = useState(null);
-  const polylineLayersRef = useRef(null); // ✅ NUEVO
   const [solicitudActiva, setSolicitudActiva] = useState(null);
   const [formulario, setFormulario] = useState({
     tipo_material: 'plastico',
@@ -60,6 +23,12 @@ export default function SolicitarRecoleccion() {
   });
   const [loading, setLoading] = useState(false);
   const socketRef = useRef(null);
+  const mapRef = useRef(null);
+
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries: ['places']
+  });
 
   // 🔹 Obtener usuario actual
   useEffect(() => {
@@ -103,7 +72,6 @@ export default function SolicitarRecoleccion() {
     ws.onopen = () => console.log('WebSocket conectado ✅');
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      console.log('Mensaje recibido:', data);
       
       if (data.type === 'solicitud_aceptada') {
         setSolicitudActiva((prev) => ({
@@ -116,16 +84,14 @@ export default function SolicitarRecoleccion() {
         const nuevaUbicacion = { lat: data.lat, lng: data.lng };
         setRecicladorUbicacion(nuevaUbicacion);
         
-        // ✅ OBTENER RUTA DE MAPBOX
         if (ubicacion) {
-          fetchMapboxRoute(nuevaUbicacion, ubicacion);
+          fetchGoogleRoute(nuevaUbicacion, ubicacion);
         }
       } else if (data.type === 'solicitud_completada') {
-        // ✅ NUEVO: Limpiar cuando el reciclador completa
         alert('¡Recolección completada! Gracias por reciclar 🌱');
         setSolicitudActiva(null);
         setRecicladorUbicacion(null);
-        setRutaPolyline([]);
+        setDirectionsResponse(null);
         setDistanciaEstimada(null);
       }
     };
@@ -139,37 +105,27 @@ export default function SolicitarRecoleccion() {
     };
   }, [userId, ubicacion]);
 
-  // ✅ FUNCIÓN para obtener ruta de Mapbox (con validación)
-  const fetchMapboxRoute = async (origen, destino) => {
-    const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
-    
-    if (!mapboxToken || mapboxToken === 'pk.tu_token_aqui') {
-      console.error('❌ Token de Mapbox no configurado');
-      return;
-    }
-    
-    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${origen.lng},${origen.lat};${destino.lng},${destino.lat}?geometries=geojson&access_token=${mapboxToken}`;
-    
+  // ✅ CALCULAR RUTA CON GOOGLE DIRECTIONS
+  const fetchGoogleRoute = async (origen, destino) => {
+    if (!window.google) return;
+
+    const directionsService = new window.google.maps.DirectionsService();
+
     try {
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.routes && data.routes.length > 0) {
-        const route = data.routes[0];
-        const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-        
-        setRutaPolyline(coordinates);
-        
-        const distancia = (route.distance / 1000).toFixed(2);
-        setDistanciaEstimada(distancia);
-        
-        console.log('🗺️ Ruta actualizada desde Mapbox');
-      }
+      const resultado = await directionsService.route({
+        origin: new window.google.maps.LatLng(origen.lat, origen.lng),
+        destination: new window.google.maps.LatLng(destino.lat, destino.lng),
+        travelMode: window.google.maps.TravelMode.DRIVING,
+      });
+
+      setDirectionsResponse(resultado);
+
+      const route = resultado.routes[0];
+      const leg = route.legs[0];
+      const distancia = (leg.distance.value / 1000).toFixed(2);
+      setDistanciaEstimada(distancia);
+
+      console.log('🗺️ Ruta actualizada desde Google Maps');
     } catch (error) {
       console.error('❌ Error obteniendo ruta:', error);
     }
@@ -275,7 +231,7 @@ export default function SolicitarRecoleccion() {
       // ✅ LIMPIAR ESTADO COMPLETO
       setSolicitudActiva(null);
       setRecicladorUbicacion(null);
-      setRutaPolyline([]); // ✅ Limpiar ruta
+      setDirectionsResponse(null); // ✅ Limpiar ruta
       setDistanciaEstimada(null); // ✅ Limpiar distancia
     } catch (err) {
       console.error(err);
@@ -286,106 +242,52 @@ export default function SolicitarRecoleccion() {
   };
 
   // 🔹 Loader mientras se carga usuario o ubicación
-  if (!userId || !ubicacion)
+  if (!isLoaded || !userId || !ubicacion) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p className="text-green-700 font-semibold">
-            Obteniendo tu información...
-          </p>
+          <p className="text-green-700 font-semibold">Obteniendo tu información...</p>
         </div>
       </div>
     );
+  }
 
   return (
     <div className="h-screen flex flex-col">
       <div className="flex-1 relative">
         <div className="absolute inset-0 z-0">
-          <MapContainer
-            center={[ubicacion.lat, ubicacion.lng]}
+          <GoogleMap
+            mapContainerStyle={mapContainerStyle}
+            center={ubicacion}
             zoom={15}
-            className="h-full w-full"
+            onLoad={(map) => { mapRef.current = map; }}
           >
-            <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution="&copy; OpenStreetMap contributors"
-            />
-            
-            {recicladorUbicacion && solicitudActiva?.estado === 'aceptada' && (
-              <UpdateMapView center={[recicladorUbicacion.lat, recicladorUbicacion.lng]} />
-            )}
-            
-            <Marker position={[ubicacion.lat, ubicacion.lng]} icon={userIcon}>
-              <Popup>Tu ubicación 📍</Popup>
-            </Marker>
+            <Marker position={ubicacion} />
             
             {recicladorUbicacion && (
-              <>
-                <Marker
-                  position={[recicladorUbicacion.lat, recicladorUbicacion.lng]}
-                  icon={recyclerIcon}
-                >
-                  <Popup>
-                    <div className="text-center">
-                      <p className="font-bold text-green-700">🚗 Reciclador</p>
-                      {distanciaEstimada && (
-                        <p className="text-sm text-gray-600">
-                          A {distanciaEstimada} km de ti
-                        </p>
-                      )}
-                    </div>
-                  </Popup>
-                </Marker>
-                
-                {/* ✅ RUTA CON MÚLTIPLES CAPAS ESTILO GOOGLE MAPS */}
-                {rutaPolyline.length > 0 && (
-                  <>
-                    <Polyline
-                      positions={rutaPolyline}
-                      pathOptions={{
-                        color: '#000000',
-                        weight: 12,
-                        opacity: 0.15,
-                        lineCap: 'round',
-                        lineJoin: 'round'
-                      }}
-                    />
-                    <Polyline
-                      positions={rutaPolyline}
-                      pathOptions={{
-                        color: '#047857',
-                        weight: 10,
-                        opacity: 0.8,
-                        lineCap: 'round',
-                        lineJoin: 'round'
-                      }}
-                    />
-                    <Polyline
-                      positions={rutaPolyline}
-                      pathOptions={{
-                        color: '#10b981',
-                        weight: 7,
-                        opacity: 1,
-                        lineCap: 'round',
-                        lineJoin: 'round'
-                      }}
-                    />
-                    <Polyline
-                      positions={rutaPolyline}
-                      pathOptions={{
-                        color: '#34d399',
-                        weight: 4,
-                        opacity: 0.7,
-                        lineCap: 'round',
-                        lineJoin: 'round'
-                      }}
-                    />
-                  </>
-                )}
-              </>
+              <Marker
+                position={recicladorUbicacion}
+                icon={{
+                  url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+                  scaledSize: new window.google.maps.Size(25, 41),
+                }}
+              />
             )}
-          </MapContainer>
+
+            {directionsResponse && (
+              <DirectionsRenderer
+                directions={directionsResponse}
+                options={{
+                  polylineOptions: {
+                    strokeColor: '#10b981',
+                    strokeWeight: 6,
+                  },
+                  suppressMarkers: true,
+                }}
+              />
+            )}
+          </GoogleMap>
         </div>
 
         {/* Panel superior al mapa */}
