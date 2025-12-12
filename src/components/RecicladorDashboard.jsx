@@ -398,6 +398,9 @@ export default function RecicladorDashboard() {
       setSolicitudesPendientes((prev) => prev.filter((s) => s.id !== solicitud.id));
       setDisponible(false);
       
+      // ✅ INICIALIZAR routeInfo inmediatamente
+      setRouteInfo({ distance: '0.0', time: 0 }); // Valores temporales
+      
       if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
         socketRef.current.send(
           JSON.stringify({ type: 'aceptar_solicitud', solicitud_id: solicitud.id })
@@ -529,8 +532,8 @@ export default function RecicladorDashboard() {
             </Marker>
           ))}
 
-          {/* ✅ RUTA ACTIVA - Solo renderizar si solicitudActiva existe */}
-          {solicitudActiva && miUbicacion && routeInfo && (
+          {/* ✅ RUTA ACTIVA - Renderizar solo con solicitudActiva */}
+          {solicitudActiva && miUbicacion && (
             <>
               <Marker position={[solicitudActiva.latitud, solicitudActiva.longitud]} icon={userIcon}>
                 <Popup>
@@ -541,7 +544,7 @@ export default function RecicladorDashboard() {
                 </Popup>
               </Marker>
               <RoutingMachine
-                key={`route-${solicitudActiva.id}-${routeInfo.distance}`}
+                key={`route-${solicitudActiva.id}`}
                 start={[miUbicacion.lat, miUbicacion.lng]}
                 end={[solicitudActiva.latitud, solicitudActiva.longitud]}
                 onRouteFound={setRouteInfo}
