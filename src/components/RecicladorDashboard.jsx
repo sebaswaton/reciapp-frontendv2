@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { GoogleMap, LoadScript, Marker, DirectionsRenderer } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, Marker, DirectionsRenderer } from '@react-google-maps/api'; // ✅ Cambio
 import { me } from '../api/auth';
 import { 
   Navigation, 
@@ -50,6 +50,7 @@ export default function RecicladorDashboard() {
   // UI States
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [filtroMaterial, setFiltroMaterial] = useState('Todos');
+  const [isMapLoaded, setIsMapLoaded] = useState(false); // ✅ NUEVO
 
   const socketRef = useRef(null);
   const watchIdRef = useRef(null);
@@ -211,10 +212,10 @@ export default function RecicladorDashboard() {
 
   // Calcular ruta cuando se acepta solicitud
   useEffect(() => {
-    if (solicitudActiva && miUbicacion && window.google) {
+    if (solicitudActiva && miUbicacion && isMapLoaded) {
       calcularRuta();
     }
-  }, [solicitudActiva, miUbicacion, calcularRuta]);
+  }, [solicitudActiva, miUbicacion, isMapLoaded, calcularRuta]);
 
   const calcularDistancia = (lat1, lon1, lat2, lon2) => {
     const R = 6371;
@@ -342,13 +343,40 @@ export default function RecicladorDashboard() {
   const onMapLoad = useCallback((map) => {
     mapRef.current = map;
     directionsService.current = new window.google.maps.DirectionsService();
+    setIsMapLoaded(true); // ✅ NUEVO: Marcar como cargado
   }, []);
 
-  if (!userId || !miUbicacion) {
+  // ✅ Calcular ruta solo cuando el mapa esté cargado
+  useEffect(() => {
+    if (solicitudActiva && miUbicacion && isMapLoaded) {
+      calcularRuta();
+    }
+  }, [solicitudActiva, miUbicacion, isMapLoaded, calcularRuta]);
+
+  // ✅ NUEVO: Cargar Google Maps de forma más eficiente
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries: ['places'], // opcional
+  });
+
+  if (loadError) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <p className="text-red-600 font-semibold">Error cargando Google Maps</p>
+          <p className="text-gray-600">Verifica tu API Key</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!userId || !miUbicacion || !isLoaded) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
         <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-green-600 mb-4"></div>
-        <p className="text-gray-500 font-medium animate-pulse">Cargando ReciApp...</p>
+        <p className="text-gray-500 font-medium animate-pulse">
+          {!isLoaded ? 'Cargando Google Maps...' : 'Cargando ReciApp...'}
+        </p>
       </div>
     );
   }
@@ -358,65 +386,64 @@ export default function RecicladorDashboard() {
       
       {/* ================= GOOGLE MAPS ================= */}
       <div className="absolute inset-0 z-0">
-        <LoadScript googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}>
-          <GoogleMap
-            mapContainerStyle={mapContainerStyle}
-            center={miUbicacion}
-            zoom={15}
-            options={mapOptions}
-            onLoad={onMapLoad}
-          >
-            {/* Marcador del reciclador */}
+        {/* ✅ Ya no usamos LoadScript, el hook lo maneja */}
+        <GoogleMap
+          mapContainerStyle={mapContainerStyle}
+          center={miUbicacion}
+          zoom={15}
+          options={mapOptions}
+          onLoad={onMapLoad}
+        >
+          {/* Marcador del reciclador */}
+          <Marker
+            position={miUbicacion}
+            icon={{
+              url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+              scaledSize: new window.google.maps.Size(25, 41),
+            }}
+          />
+
+          {/* Marcadores de solicitudes pendientes */}
+          {!solicitudActiva && solicitudesFiltradas.map((solicitud) => (
             <Marker
-              position={miUbicacion}
+              key={solicitud.id}
+              position={{ lat: solicitud.latitud, lng: solicitud.longitud }}
               icon={{
-                url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+                url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
                 scaledSize: new window.google.maps.Size(25, 41),
               }}
+              onClick={() => {
+                // Mostrar info en sidebar o popup
+              }}
             />
+          ))}
 
-            {/* Marcadores de solicitudes pendientes */}
-            {!solicitudActiva && solicitudesFiltradas.map((solicitud) => (
+          {/* Marcador de destino y ruta */}
+          {solicitudActiva && (
+            <>
               <Marker
-                key={solicitud.id}
-                position={{ lat: solicitud.latitud, lng: solicitud.longitud }}
+                position={{ lat: solicitudActiva.latitud, lng: solicitudActiva.longitud }}
                 icon={{
-                  url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                  url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
                   scaledSize: new window.google.maps.Size(25, 41),
                 }}
-                onClick={() => {
-                  // Mostrar info en sidebar o popup
-                }}
               />
-            ))}
-
-            {/* Marcador de destino y ruta */}
-            {solicitudActiva && (
-              <>
-                <Marker
-                  position={{ lat: solicitudActiva.latitud, lng: solicitudActiva.longitud }}
-                  icon={{
-                    url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-                    scaledSize: new window.google.maps.Size(25, 41),
+              {directions && (
+                <DirectionsRenderer
+                  directions={directions}
+                  options={{
+                    suppressMarkers: true,
+                    polylineOptions: {
+                      strokeColor: '#10b981',
+                      strokeWeight: 6,
+                      strokeOpacity: 0.8,
+                    }
                   }}
                 />
-                {directions && (
-                  <DirectionsRenderer
-                    directions={directions}
-                    options={{
-                      suppressMarkers: true,
-                      polylineOptions: {
-                        strokeColor: '#10b981',
-                        strokeWeight: 6,
-                        strokeOpacity: 0.8,
-                      }
-                    }}
-                  />
-                )}
-              </>
-            )}
-          </GoogleMap>
-        </LoadScript>
+              )}
+            </>
+          )}
+        </GoogleMap>
       </div>
 
       {/* ✅ PANEL DE NAVEGACIÓN GPS */}
@@ -564,80 +591,80 @@ export default function RecicladorDashboard() {
                           filtroMaterial === filtro 
                           ? 'bg-green-600 text-white border-green-600' 
                           : 'bg-white text-gray-500 border-gray-200 hover:border-green-300'
-                        }`}
-                     >
-                       {filtro}
-                     </button>
+                        }`}ength === 0 ? (
+                     >e="text-center py-12 opacity-40">
+                       {filtro}                      <Trash2 size={48} className="mx-auto mb-3 text-gray-400"/>
+                     </button>solicitudes de {filtroMaterial === 'Todos' ? 'reciclaje' : filtroMaterial} cerca.</p>
                    ))}
                 </div>
-
-                <div className="flex items-center justify-between mb-3">
+iltradas.map((sol) => (
+                <div className="flex items-center justify-between mb-3">"bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-all group relative">
                   <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
                     <Leaf size={14}/> Disponibles ({solicitudesFiltradas.length})
-                  </h3>
-                </div>
+                  </h3>lassName="absolute top-2 right-2 p-1 text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-full transition-colors"
+                </div>norar"
 
                 <div className="space-y-3 pb-20">
-                  {solicitudesFiltradas.length === 0 ? (
-                    <div className="text-center py-12 opacity-40">
-                      <Trash2 size={48} className="mx-auto mb-3 text-gray-400"/>
-                      <p className="text-sm font-medium">No hay solicitudes de {filtroMaterial === 'Todos' ? 'reciclaje' : filtroMaterial} cerca.</p>
-                    </div>
-                  ) : (
-                    solicitudesFiltradas.map((sol) => (
-                      <div key={sol.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:shadow-md transition-all group relative">
-                        <button 
-                           onClick={() => ignorarSolicitud(sol.id)}
-                           className="absolute top-2 right-2 p-1 text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-full transition-colors"
-                           title="Ignorar"
-                        >
-                           <X size={16}/>
+                           <X size={16}/>ton>
                         </button>
-
-                        <div className="flex items-start gap-3">
-                          <div className="h-10 w-10 rounded-full bg-green-50 flex items-center justify-center text-green-600">
-                             <Trash2 size={20}/>
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-bold text-gray-700">{sol.tipo_material}</h4>
-                            <p className="text-xs text-gray-400 mb-3">{sol.cantidad} kg • Recolección inmediata</p>
-                            
-                            <button 
-                              onClick={() => aceptarSolicitud(sol)}
+e="flex items-start gap-3">
+                        <div className="flex items-start gap-3">lassName="h-10 w-10 rounded-full bg-green-50 flex items-center justify-center text-green-600">
+                          <div className="h-10 w-10 rounded-full bg-green-50 flex items-center justify-center text-green-600">Trash2 size={20}/>
+                             <Trash2 size={20}/>div>
+                          </div>    <div className="flex-1">
+                          <div className="flex-1">        <h4 className="font-bold text-gray-700">{sol.tipo_material}</h4>
+                            <h4 className="font-bold text-gray-700">{sol.tipo_material}</h4>      <p className="text-xs text-gray-400 mb-3">{sol.cantidad} kg • Recolección inmediata</p>
+                            <p className="text-xs text-gray-400 mb-3">{sol.cantidad} kg • Recolección inmediata</p>           
+                                          <button 
+                            <button               onClick={() => aceptarSolicitud(sol)}
+                              onClick={() => aceptarSolicitud(sol)}                              className="w-full bg-gray-50 hover:bg-green-600 hover:text-white text-gray-600 text-xs font-bold py-2 rounded-lg transition-all flex items-center justify-center gap-2"
                               className="w-full bg-gray-50 hover:bg-green-600 hover:text-white text-gray-600 text-xs font-bold py-2 rounded-lg transition-all flex items-center justify-center gap-2"
-                            >
-                              <Navigation size={14}/> Ir a Recoger
+                            >r
+                              <Navigation size={14}/> Ir a Recoger        </button>
                             </button>
                           </div>
-                        </div>
+                        </div>         </div>
                       </div>
                     ))
-                  )}
-                </div>
-              </>
-            )}
+                  )}</div>
+                </div></>
+              </>)}
+            )}          </div>
           </div>
 
           {/* Footer del Sidebar (Logout) */}
           <div className="p-4 border-t border-gray-200 bg-white">
             <button 
-              onClick={cerrarSesion}
+              onClick={cerrarSesion}ustify-center gap-2 text-red-500 hover:text-red-600 hover:bg-red-50 py-3 rounded-xl transition-colors font-medium text-sm"
               className="w-full flex items-center justify-center gap-2 text-red-500 hover:text-red-600 hover:bg-red-50 py-3 rounded-xl transition-colors font-medium text-sm"
-            >
-              <LogOut size={18} /> Cerrar Sesión
+            >ogOut size={18} /> Cerrar Sesión
+              <LogOut size={18} /> Cerrar Sesiónon>
             </button>
           </div>
-        </div>
+        </div>>
       </div>
+ de Estado (Top Right) */}
+      {/* 4. Switch de Estado (Top Right) */}ssName="absolute top-4 right-4 z-[1000] hidden md:block">
+      <div className="absolute top-4 right-4 z-[1000] hidden md:block"> className={`flex items-center gap-3 px-4 py-2 rounded-full shadow-lg backdrop-blur-md transition-all ${disponible ? 'bg-white/90 border-green-500 border-2' : 'bg-gray-800/90 border-gray-600 border'}`}>
+        <div className={`flex items-center gap-3 px-4 py-2 rounded-full shadow-lg backdrop-blur-md transition-all ${disponible ? 'bg-white/90 border-green-500 border-2' : 'bg-gray-800/90 border-gray-600 border'}`}>          <div className="flex flex-col items-end">
+          <div className="flex flex-col items-end">  <span className={`text-xs font-bold uppercase ${disponible ? 'text-green-600' : 'text-gray-400'}`}>
+            <span className={`text-xs font-bold uppercase ${disponible ? 'text-green-600' : 'text-gray-400'}`}>          {disponible ? 'En Línea' : 'Offline'}
+              {disponible ? 'En Línea' : 'Offline'}           </span>
 
-      {/* 4. Switch de Estado (Top Right) */}
-      <div className="absolute top-4 right-4 z-[1000] hidden md:block">
-        <div className={`flex items-center gap-3 px-4 py-2 rounded-full shadow-lg backdrop-blur-md transition-all ${disponible ? 'bg-white/90 border-green-500 border-2' : 'bg-gray-800/90 border-gray-600 border'}`}>
-          <div className="flex flex-col items-end">
-            <span className={`text-xs font-bold uppercase ${disponible ? 'text-green-600' : 'text-gray-400'}`}>
-              {disponible ? 'En Línea' : 'Offline'}
-            </span>
-          </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+}  );    </div>      </div>        </div>          </button>            <Power size={16} />          >            className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${disponible ? 'bg-green-500 text-white shadow-lg shadow-green-200' : 'bg-gray-600 text-gray-300'}`}            onClick={() => setDisponible(!disponible)}          <button           </div>            </span>          </div>
           <button 
             onClick={() => setDisponible(!disponible)}
             className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${disponible ? 'bg-green-500 text-white shadow-lg shadow-green-200' : 'bg-gray-600 text-gray-300'}`}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GoogleMap, LoadScript, Marker, DirectionsRenderer } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, Marker, DirectionsRenderer } from '@react-google-maps/api'; // ✅ Cambio
 import { me } from '../api/auth';
 
 const mapContainerStyle = {
@@ -30,6 +30,7 @@ export default function SolicitarRecoleccion() {
     descripcion: '',
   });
   const [loading, setLoading] = useState(false);
+  const [isMapLoaded, setIsMapLoaded] = useState(false); // ✅ NUEVO
   
   const socketRef = useRef(null);
   const mapRef = useRef(null);
@@ -136,12 +137,18 @@ export default function SolicitarRecoleccion() {
     );
   }, [recicladorUbicacion, ubicacion]);
 
-  // Calcular ruta cuando cambia ubicación del reciclador
+  const onMapLoad = useCallback((map) => {
+    mapRef.current = map;
+    directionsService.current = new window.google.maps.DirectionsService();
+    setIsMapLoaded(true); // ✅ NUEVO
+  }, []);
+
+  // ✅ Calcular ruta solo cuando el mapa esté cargado
   useEffect(() => {
-    if (recicladorUbicacion && ubicacion && window.google) {
+    if (recicladorUbicacion && ubicacion && isMapLoaded) {
       calcularRutaGoogle();
     }
-  }, [recicladorUbicacion, ubicacion, calcularRutaGoogle]);
+  }, [recicladorUbicacion, ubicacion, isMapLoaded, calcularRutaGoogle]);
 
   // 🔹 Crear solicitud
   const handleSolicitar = async () => {
@@ -237,23 +244,39 @@ export default function SolicitarRecoleccion() {
     }
   };
 
-  const onMapLoad = useCallback((map) => {
-    mapRef.current = map;
-    directionsService.current = new window.google.maps.DirectionsService();
-  }, []);
+  // 🔹 Cargar Google Maps
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+  });
 
-  // 🔹 Loader
-  if (!userId || !ubicacion)
+  if (loadError) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <p className="text-red-600 font-semibold">Error cargando Google Maps</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="mt-4 bg-green-600 text-white px-4 py-2 rounded-lg"
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!userId || !ubicacion || !isLoaded) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-green-600 mx-auto mb-4"></div>
           <p className="text-green-700 font-semibold">
-            Obteniendo tu información...
+            {!isLoaded ? 'Cargando mapa...' : 'Obteniendo tu información...'}
           </p>
         </div>
       </div>
     );
+  }
 
   return (
     <div className="h-screen flex flex-col">
@@ -261,52 +284,50 @@ export default function SolicitarRecoleccion() {
         
         {/* ================= GOOGLE MAPS ================= */}
         <div className="absolute inset-0 z-0">
-          <LoadScript googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}>
-            <GoogleMap
-              mapContainerStyle={mapContainerStyle}
-              center={ubicacion}
-              zoom={15}
-              options={mapOptions}
-              onLoad={onMapLoad}
-            >
-              {/* Marcador del ciudadano */}
+          <GoogleMap
+            mapContainerStyle={mapContainerStyle}
+            center={ubicacion}
+            zoom={15}
+            options={mapOptions}
+            onLoad={onMapLoad}
+          >
+            {/* Marcador del ciudadano */}
+            <Marker
+              position={ubicacion}
+              icon={{
+                url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                scaledSize: new window.google.maps.Size(25, 41),
+              }}
+              title="Tu ubicación"
+            />
+
+            {/* Marcador del reciclador */}
+            {recicladorUbicacion && (
               <Marker
-                position={ubicacion}
+                position={recicladorUbicacion}
                 icon={{
-                  url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                  url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
                   scaledSize: new window.google.maps.Size(25, 41),
                 }}
-                title="Tu ubicación"
+                title="Reciclador en camino"
               />
+            )}
 
-              {/* Marcador del reciclador */}
-              {recicladorUbicacion && (
-                <Marker
-                  position={recicladorUbicacion}
-                  icon={{
-                    url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-                    scaledSize: new window.google.maps.Size(25, 41),
-                  }}
-                  title="Reciclador en camino"
-                />
-              )}
-
-              {/* Ruta del reciclador */}
-              {directions && (
-                <DirectionsRenderer
-                  directions={directions}
-                  options={{
-                    suppressMarkers: true,
-                    polylineOptions: {
-                      strokeColor: '#10b981',
-                      strokeWeight: 6,
-                      strokeOpacity: 0.8,
-                    }
-                  }}
-                />
-              )}
-            </GoogleMap>
-          </LoadScript>
+            {/* Ruta del reciclador */}
+            {directions && (
+              <DirectionsRenderer
+                directions={directions}
+                options={{
+                  suppressMarkers: true,
+                  polylineOptions: {
+                    strokeColor: '#10b981',
+                    strokeWeight: 6,
+                    strokeOpacity: 0.8,
+                  }
+                }}
+              />
+            )}
+          </GoogleMap>
         </div>
 
         {/* ================= PANEL INFERIOR ================= */}
