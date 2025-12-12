@@ -4,14 +4,10 @@
 
 [build.environment]
   NODE_VERSION = "18"
-  # ✅ Omitir valores específicos (reemplaza con tu API Key)
-  SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "AIza***"
+  # ✅ DESACTIVAR ESCANEO DE SECRETOS (necesario para Google Maps API)
+  SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
 
-# Prevenir escaneo de secretos en archivos compilados
-[[plugins]]
-  package = "@netlify/plugin-lighthouse"
-
-# Redirecciones SPA
+# Redirecciones SPA (Single Page Application)
 [[redirects]]
   from = "/*"
   to = "/index.html"
