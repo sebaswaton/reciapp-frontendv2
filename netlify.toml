@@ -4,6 +4,8 @@
 
 [build.environment]
   NODE_VERSION = "18"
+  # ✅ Omitir valores específicos (reemplaza con tu API Key)
+  SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "AIza***"
 
 # Prevenir escaneo de secretos en archivos compilados
 [[plugins]]
@@ -22,3 +24,4 @@
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(self)"
