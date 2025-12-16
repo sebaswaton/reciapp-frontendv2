@@ -1,7 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GoogleMap, useJsApiLoader, Marker, DirectionsRenderer, Circle } from '@react-google-maps/api'; // ✅ Cambio
+import { GoogleMap, useJsApiLoader, Marker, DirectionsRenderer, Circle } from '@react-google-maps/api';
 import { me } from '../api/auth';
+import { 
+  Menu, 
+  X, 
+  User, 
+  MapPin, 
+  Clock, 
+  Package, 
+  Leaf,
+  ArrowLeft,
+  AlertCircle,
+  Locate
+} from 'lucide-react'; // ✅ AGREGAR IMPORTACIÓN DE ICONOS
 
 const mapContainerStyle = {
   width: '100%',
@@ -18,6 +30,7 @@ const mapOptions = {
 export default function SolicitarRecoleccion() {
   const navigate = useNavigate();
   const [userId, setUserId] = useState(null);
+  const [userData, setUserData] = useState(null); // ✅ AGREGAR
   const [ubicacion, setUbicacion] = useState(null);
   const [recicladorUbicacion, setRecicladorUbicacion] = useState(null);
   const [directions, setDirections] = useState(null);
@@ -30,12 +43,13 @@ export default function SolicitarRecoleccion() {
     descripcion: '',
   });
   const [loading, setLoading] = useState(false);
-  const [isMapLoaded, setIsMapLoaded] = useState(false); // ✅ NUEVO
+  const [isMapLoaded, setIsMapLoaded] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true); // ✅ AGREGAR
   
   const socketRef = useRef(null);
   const mapRef = useRef(null);
   const directionsService = useRef(null);
-  const routeUpdateTimerRef = useRef(null); // ✅ NUEVO
+  const routeUpdateTimerRef = useRef(null);
 
   // 🔹 Obtener usuario actual
   useEffect(() => {
@@ -43,6 +57,7 @@ export default function SolicitarRecoleccion() {
       try {
         const user = await me();
         setUserId(user.id);
+        setUserData(user); // ✅ AGREGAR
       } catch (error) {
         console.error('Error obteniendo usuario:', error);
       }
@@ -182,6 +197,14 @@ export default function SolicitarRecoleccion() {
     directionsService.current = new window.google.maps.DirectionsService();
     setIsMapLoaded(true);
   }, []);
+
+  // ✅ AGREGAR FUNCIÓN centrarEnMi (FALTABA)
+  const centrarEnMi = () => {
+    if (ubicacion && mapRef.current) {
+      mapRef.current.panTo(ubicacion);
+      mapRef.current.setZoom(15);
+    }
+  };
 
   // 🔹 Crear solicitud
   const handleSolicitar = async () => {
