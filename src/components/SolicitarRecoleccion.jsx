@@ -312,254 +312,258 @@ export default function SolicitarRecoleccion() {
   }
 
   return (
-    <div className="h-screen flex flex-col">
-      <div className="flex-1 relative">
-        
-        {/* ================= GOOGLE MAPS ================= */}
-        <div className="absolute inset-0 z-0">
-          <GoogleMap
-            mapContainerStyle={mapContainerStyle}
-            center={ubicacion}
-            zoom={15}
-            options={{
-              ...mapOptions,
-              gestureHandling: 'greedy', // ✅ Permitir interacción manual
-            }}
-            onLoad={onMapLoad}
-          >
-            {/* Círculo pulsante alrededor del ciudadano (solo cuando hay reciclador en camino) */}
-            {recicladorUbicacion && (
-              <Circle
-                center={ubicacion}
-                radius={100}
-                options={{
-                  fillColor: '#3B82F6',
-                  fillOpacity: 0.2,
-                  strokeColor: '#3B82F6',
-                  strokeOpacity: 0.5,
-                  strokeWeight: 2,
-                }}
-              />
-            )}
-
-            {/* Marcador del ciudadano */}
-            <Marker
-              position={ubicacion}
-              icon={{
-                url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-                scaledSize: new window.google.maps.Size(25, 41),
+    <div className="h-screen w-full relative overflow-hidden bg-gray-100 font-sans">
+      
+      {/* ================= GOOGLE MAPS ================= */}
+      <div className="absolute inset-0 z-0">
+        <GoogleMap
+          mapContainerStyle={mapContainerStyle}
+          center={ubicacion}
+          zoom={15}
+          options={{
+            ...mapOptions,
+            gestureHandling: 'greedy',
+            disableDefaultUI: false,
+            zoomControl: true,
+          }}
+          onLoad={onMapLoad}
+        >
+          {recicladorUbicacion && (
+            <Circle
+              center={ubicacion}
+              radius={100}
+              options={{
+                fillColor: '#3B82F6',
+                fillOpacity: 0.2,
+                strokeColor: '#3B82F6',
+                strokeOpacity: 0.5,
+                strokeWeight: 2,
               }}
-              title="Tu ubicación"
             />
+          )}
 
-            {/* Marcador del reciclador con animación */}
-            {recicladorUbicacion && (
-              <Marker
-                position={recicladorUbicacion}
-                icon={{
-                  url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-                  scaledSize: new window.google.maps.Size(35, 55),
-                  anchor: new window.google.maps.Point(17, 55),
-                }}
-                title="Reciclador en camino"
-                animation={window.google.maps.Animation.DROP}
-              />
-            )}
+          <Marker
+            position={ubicacion}
+            icon={{
+              url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+              scaledSize: new window.google.maps.Size(25, 41),
+            }}
+            title="Tu ubicación"
+          />
 
-            {/* Ruta del reciclador al ciudadano */}
-            {directions && (
-              <DirectionsRenderer
-                directions={directions}
-                options={{
-                  suppressMarkers: true,
-                  polylineOptions: {
-                    strokeColor: '#10b981',
-                    strokeWeight: 7,
-                    strokeOpacity: 0.9,
-                    geodesic: true,
-                  },
-                  preserveViewport: true, // ✅ Evita que la ruta fuerce zoom
-                }}
-              />
-            )}
-          </GoogleMap>
-        </div>
+          {recicladorUbicacion && (
+            <Marker
+              position={recicladorUbicacion}
+              icon={{
+                url: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+                scaledSize: new window.google.maps.Size(35, 55),
+                anchor: new window.google.maps.Point(17, 55),
+              }}
+              title="Reciclador en camino"
+              animation={window.google.maps.Animation.DROP}
+            />
+          )}
 
-        {/* ================= PANEL INFERIOR ================= */}
-        <div className="absolute bottom-0 left-0 right-0 z-10">
-          {!solicitudActiva ? (
-            // Formulario de solicitud
-            <div className="bg-white rounded-t-3xl shadow-2xl p-6">
-              <h2 className="text-2xl font-bold text-green-700 mb-4">
-                Solicitar Recolección
-              </h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tipo de Material
-                  </label>
-                  <select
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                    value={formulario.tipo_material}
-                    onChange={(e) =>
-                      setFormulario({
-                        ...formulario,
-                        tipo_material: e.target.value,
-                      })
-                    }
-                  >
-                    <option value="plastico">Plástico</option>
-                    <option value="papel">Papel / Cartón</option>
-                    <option value="vidrio">Vidrio</option>
-                    <option value="metal">Metal</option>
-                    <option value="electronico">Electrónico</option>
-                  </select>
+          {directions && (
+            <DirectionsRenderer
+              directions={directions}
+              options={{
+                suppressMarkers: true,
+                polylineOptions: {
+                  strokeColor: '#10b981',
+                  strokeWeight: 7,
+                  strokeOpacity: 0.9,
+                  geodesic: true,
+                },
+                preserveViewport: true,
+              }}
+            />
+          )}
+        </GoogleMap>
+      </div>
+
+      {/* ================= UI FLOTANTE (SIDEBAR) ================= */}
+      
+      {/* 1. Botón Menu Móvil */}
+      <button 
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        className="absolute top-4 left-4 z-[1000] bg-white p-3 rounded-xl shadow-lg md:hidden text-gray-700 hover:bg-gray-50 transition-colors"
+      >
+        {sidebarOpen ? <X size={24}/> : <Menu size={24}/>}
+      </button>
+
+      {/* 2. Botón "Centrar en Mí" (Flotante) */}
+      <button 
+        onClick={centrarEnMi}
+        className="absolute bottom-6 right-6 z-[1000] bg-white p-3 rounded-full shadow-xl hover:bg-blue-50 text-gray-700 hover:text-blue-600 transition-all transform hover:scale-110"
+        title="Mi Ubicación"
+      >
+        <Locate size={24} />
+      </button>
+
+      {/* 3. Panel Lateral (Sidebar) - ESTILO RECICLADOR */}
+      <div className={`absolute top-0 left-0 h-full w-full md:w-96 bg-white/95 backdrop-blur-md shadow-2xl z-[1001] transition-transform duration-300 ease-in-out transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex flex-col h-full">
+          
+          {/* Header del Sidebar */}
+          <div className="p-6 bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-md relative">
+            <button onClick={() => setSidebarOpen(false)} className="absolute top-4 right-4 md:hidden opacity-80 hover:opacity-100">
+               <X size={24}/>
+            </button>
+            <div className="flex items-center gap-4">
+              <div className="h-14 w-14 rounded-full bg-white text-blue-600 flex items-center justify-center font-bold text-2xl shadow-inner border-2 border-blue-200">
+                {userData?.nombre ? userData.nombre[0].toUpperCase() : <User />}
+              </div>
+              <div>
+                <h2 className="font-bold text-xl">{userData?.nombre || 'Ciudadano'}</h2>
+                <div className="flex items-center gap-1 text-blue-100 text-sm">
+                  <Leaf size={14}/>
+                  <span className="font-medium">Contribuyente Activo</span>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Cantidad (kg aproximados)
-                  </label>
-                  <input
-                    type="number"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                    value={formulario.cantidad}
-                    onChange={(e) =>
-                      setFormulario({
-                        ...formulario,
-                        cantidad: e.target.value,
-                      })
-                    }
-                    placeholder="5"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Descripción (opcional)
-                  </label>
-                  <textarea
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                    rows="2"
-                    value={formulario.descripcion}
-                    onChange={(e) =>
-                      setFormulario({
-                        ...formulario,
-                        descripcion: e.target.value,
-                      })
-                    }
-                    placeholder="Bolsas de plástico limpias"
-                  />
-                </div>
-
-                <button
-                  onClick={handleSolicitar}
-                  disabled={loading || !formulario.cantidad}
-                  className="w-full bg-green-600 text-white font-bold py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                >
-                  {loading ? 'Solicitando...' : 'Solicitar Recolección 🚀'}
-                </button>
               </div>
             </div>
-          ) : (
-            // Estado de tracking
-            <div className="bg-white rounded-t-3xl shadow-2xl p-6 max-h-[85vh] overflow-y-auto">
-              <div className="text-center">
-                {/* Icono animado según el estado */}
-                {solicitudActiva.estado === 'pendiente' ? (
-                  <div className="mb-4">
-                    <div className="w-20 h-20 bg-gradient-to-br from-yellow-100 to-yellow-200 rounded-full mx-auto flex items-center justify-center animate-pulse">
-                      <svg
-                        className="w-10 h-10 text-yellow-600 animate-spin"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mb-4">
-                    <div className="w-20 h-20 bg-gradient-to-br from-green-100 to-emerald-200 rounded-full mx-auto flex items-center justify-center shadow-lg">
-                      <svg
-                        className="w-10 h-10 text-green-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                )}
+            
+            {/* Stats Rápidas */}
+            <div className="flex mt-6 gap-2">
+              <div className="flex-1 bg-white/20 rounded-lg p-2 text-center backdrop-blur-sm">
+                <p className="text-2xl font-bold">50</p>
+                <p className="text-[10px] uppercase tracking-wider opacity-80">Puntos</p>
+              </div>
+              <div className="flex-1 bg-white/20 rounded-lg p-2 text-center backdrop-blur-sm">
+                <p className="text-2xl font-bold">8kg</p>
+                <p className="text-[10px] uppercase tracking-wider opacity-80">Total</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Cuerpo del Sidebar */}
+          <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+            
+            {!solicitudActiva ? (
+              // ✅ FORMULARIO DE SOLICITUD
+              <div className="bg-white border-2 border-blue-500 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 right-0 bg-blue-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">
+                  📍 NUEVA SOLICITUD
+                </div>
                 
-                <h3 className="text-xl font-bold text-green-700 mb-2">
+                <h3 className="text-gray-500 text-xs font-bold uppercase mb-2 flex items-center gap-2 mt-6">
+                  <Package size={14}/> Datos de Recolección
+                </h3>
+                <h2 className="text-2xl font-bold text-gray-800 mb-4">Solicitar Recolección</h2>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Tipo de Material
+                    </label>
+                    <select
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      value={formulario.tipo_material}
+                      onChange={(e) =>
+                        setFormulario({
+                          ...formulario,
+                          tipo_material: e.target.value,
+                        })
+                      }
+                    >
+                      <option value="plastico">🔵 Plástico</option>
+                      <option value="papel">📄 Papel / Cartón</option>
+                      <option value="vidrio">💎 Vidrio</option>
+                      <option value="metal">⚙️ Metal</option>
+                      <option value="electronico">🔌 Electrónico</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Cantidad (kg aproximados)
+                    </label>
+                    <input
+                      type="number"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      value={formulario.cantidad}
+                      onChange={(e) =>
+                        setFormulario({
+                          ...formulario,
+                          cantidad: e.target.value,
+                        })
+                      }
+                      placeholder="Ej: 5"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Descripción (opcional)
+                    </label>
+                    <textarea
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none"
+                      rows="3"
+                      value={formulario.descripcion}
+                      onChange={(e) =>
+                        setFormulario({
+                          ...formulario,
+                          descripcion: e.target.value,
+                        })
+                      }
+                      placeholder="Ej: Bolsas de plástico limpias"
+                    />
+                  </div>
+
+                  <button
+                    onClick={handleSolicitar}
+                    disabled={loading || !formulario.cantidad}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02] flex items-center justify-center gap-2"
+                  >
+                    <MapPin size={20}/>
+                    {loading ? 'Solicitando...' : 'Solicitar Recolección'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              // ✅ ESTADO DE TRACKING - ESTILO MISIÓN
+              <div className="bg-white border-2 border-blue-500 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 right-0 bg-blue-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl animate-pulse">
+                  {solicitudActiva.estado === 'pendiente' ? '🔍 BUSCANDO' : '🚗 EN CAMINO'}
+                </div>
+                
+                <h3 className="text-gray-500 text-xs font-bold uppercase mb-2 flex items-center gap-2">
+                  <Clock size={14}/> Estado de Solicitud
+                </h3>
+                <h2 className="text-2xl font-bold text-gray-800 mb-1">
                   {solicitudActiva.estado === 'pendiente'
                     ? 'Buscando reciclador...'
                     : '¡Reciclador en camino!'}
-                </h3>
-                
-                <p className="text-gray-600 mb-4">
-                  {solicitudActiva.estado === 'pendiente'
-                    ? 'Estamos notificando a los recicladores cercanos'
-                    : 'El reciclador está llegando a tu ubicación'}
+                </h2>
+                <p className="text-gray-500 mb-4 capitalize">
+                  {solicitudActiva.tipo_material} - {solicitudActiva.cantidad} kg
                 </p>
                 
-                {/* ✅ TRACKING EN TIEMPO REAL ESTILO UBER */}
+                {/* ✅ INFO DE RUTA EN TIEMPO REAL */}
                 {recicladorUbicacion && distanciaEstimada && (
-                  <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-5 mb-4 shadow-xl">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="relative">
-                          <div className="animate-ping absolute h-4 w-4 bg-white rounded-full opacity-75"></div>
-                          <div className="relative h-4 w-4 bg-white rounded-full"></div>
-                        </div>
-                        <p className="text-white font-semibold text-sm">En camino a tu ubicación</p>
+                  <div className="mb-6">
+                    <div className="flex items-center gap-4 bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border-2 border-green-200">
+                      <div className="text-center flex-1">
+                        <p className="text-3xl font-bold text-green-700">{tiempoEstimado}</p>
+                        <p className="text-xs text-gray-500 uppercase">minutos</p>
                       </div>
-                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    
-                    <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 mb-3">
-                      <div className="flex items-center justify-around">
-                        <div className="text-center">
-                          <p className="text-4xl font-black text-white drop-shadow-lg">{tiempoEstimado}</p>
-                          <p className="text-xs text-white/90 font-medium uppercase tracking-wide">minutos</p>
-                        </div>
-                        <div className="w-px h-16 bg-white/40"></div>
-                        <div className="text-center">
-                          <p className="text-4xl font-black text-white drop-shadow-lg">{distanciaEstimada}</p>
-                          <p className="text-xs text-white/90 font-medium uppercase tracking-wide">kilómetros</p>
-                        </div>
+                      <div className="w-px h-12 bg-green-300"></div>
+                      <div className="text-center flex-1">
+                        <p className="text-3xl font-bold text-green-700">{distanciaEstimada}</p>
+                        <p className="text-xs text-gray-500 uppercase">kilómetros</p>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-center gap-2 text-white/95">
-                      <svg className="w-4 h-4 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                      </svg>
-                      <p className="text-sm font-semibold">Ubicación GPS actualizada en vivo</p>
+                    <div className="mt-3 flex items-center justify-center gap-2 text-green-700 bg-green-50 p-2 rounded-lg">
+                      <div className="animate-ping h-2 w-2 bg-green-500 rounded-full"></div>
+                      <p className="text-xs font-semibold">Ubicación GPS actualizada en vivo</p>
                     </div>
 
                     {/* Alerta cuando el reciclador está muy cerca */}
                     {parseFloat(distanciaEstimada) < 1.0 && (
                       <div className="mt-3 bg-yellow-400 text-yellow-900 rounded-lg p-3 flex items-center gap-2 animate-pulse">
-                        <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                        <p className="text-sm font-bold">¡El reciclador está muy cerca! Prepara tus materiales</p>
+                        <AlertCircle size={20} className="flex-shrink-0"/>
+                        <p className="text-xs font-bold">¡El reciclador está muy cerca! Prepara tus materiales</p>
                       </div>
                     )}
                   </div>
@@ -569,21 +573,9 @@ export default function SolicitarRecoleccion() {
                 <div className="space-y-3">
                   <button
                     onClick={() => navigate('/ciudadano')}
-                    className="w-full bg-gray-100 text-gray-700 font-semibold py-3 rounded-lg hover:bg-gray-200 transition-all flex items-center justify-center gap-2"
+                    className="w-full bg-gray-100 text-gray-700 font-semibold py-3 rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center gap-2"
                   >
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                      />
-                    </svg>
+                    <ArrowLeft size={18}/>
                     Volver al Dashboard
                   </button>
 
@@ -591,28 +583,26 @@ export default function SolicitarRecoleccion() {
                     <button
                       onClick={handleCancelar}
                       disabled={loading}
-                      className="w-full bg-red-500 text-white font-semibold py-3 rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                      className="w-full bg-red-500 text-white font-semibold py-3 rounded-xl hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
                     >
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
+                      <X size={18}/>
                       {loading ? 'Cancelando...' : 'Cancelar Solicitud'}
                     </button>
                   )}
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+
+          {/* Footer del Sidebar */}
+          <div className="p-4 border-t border-gray-200 bg-white">
+            <button 
+              onClick={() => navigate('/ciudadano')}
+              className="w-full flex items-center justify-center gap-2 text-gray-600 hover:text-gray-800 hover:bg-gray-50 py-3 rounded-xl transition-colors font-medium text-sm"
+            >
+              <ArrowLeft size={18} /> Volver al Inicio
+            </button>
+          </div>
         </div>
       </div>
     </div>
