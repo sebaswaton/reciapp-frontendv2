@@ -39,6 +39,9 @@ export default function RecicladorDashboard() {
   const [userData, setUserData] = useState(null);
   const [miUbicacion, setMiUbicacion] = useState(null);
   
+  // ✅ NUEVO: Estado para kg reciclados
+  const [kgReciclados, setKgReciclados] = useState(0);
+  
   const [solicitudesPendientes, setSolicitudesPendientes] = useState([]);
   const [solicitudActiva, setSolicitudActiva] = useState(null);
   
@@ -65,6 +68,26 @@ export default function RecicladorDashboard() {
         const user = await me();
         setUserId(user.id);
         setUserData(user);
+
+        // ✅ NUEVO: Cargar kg reciclados del reciclador
+        const solicitudesRes = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/solicitudes`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('token')}`,
+            },
+          }
+        );
+
+        if (solicitudesRes.ok) {
+          const solicitudes = await solicitudesRes.json();
+          // Sumar solo solicitudes completadas por este reciclador
+          const totalKg = solicitudes
+            .filter((s) => s.reciclador_id === user.id && s.estado === 'completada')
+            .reduce((sum, s) => sum + parseFloat(s.cantidad || 0), 0);
+          
+          setKgReciclados(totalKg.toFixed(1));
+        }
       } catch (error) {
         console.error('Error user:', error);
       }
@@ -535,20 +558,16 @@ export default function RecicladorDashboard() {
               <div>
                 <h2 className="font-bold text-xl">{userData?.nombre || 'Reciclador'}</h2>
                 <div className="flex items-center gap-1 text-green-100 text-sm">
-                  <span className="font-medium">Nivel: Experto</span>
+                  <span className="font-medium">Reciclador Profesional</span>
                 </div>
               </div>
             </div>
             
-            {/* Stats Rápidas */}
+            {/* ✅ Stats Rápidas - SOLO KG RECICLADOS */}
             <div className="flex mt-6 gap-2">
-              <div className="flex-1 bg-white/20 rounded-lg p-2 text-center backdrop-blur-sm">
-                <p className="text-2xl font-bold">120</p>
-                <p className="text-[10px] uppercase tracking-wider opacity-80">Puntos</p>
-              </div>
-              <div className="flex-1 bg-white/20 rounded-lg p-2 text-center backdrop-blur-sm">
-                <p className="text-2xl font-bold">15kg</p>
-                <p className="text-[10px] uppercase tracking-wider opacity-80">Hoy</p>
+              <div className="flex-1 bg-white/20 rounded-lg p-3 text-center backdrop-blur-sm">
+                <p className="text-3xl font-bold">{kgReciclados}</p>
+                <p className="text-xs uppercase tracking-wider opacity-90">kg Reciclados</p>
               </div>
             </div>
           </div>
