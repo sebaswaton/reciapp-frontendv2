@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { me } from '../api/auth';
 import Navbar from './Navbar';
@@ -8,10 +8,14 @@ export default function CiudadanoDashboard() {
   const [user, setUser] = useState(null);
   const [solicitudes, setSolicitudes] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // 👇 NUEVO: Wallet (Puntos Verdes)
   const [wallet, setWallet] = useState(null);
   const [loadingWallet, setLoadingWallet] = useState(true);
+  
+  // ✅ NUEVO: Estado para kg reciclados total
+  const [kgReciclados, setKgReciclados] = useState(0);
+  
+  // ✅ NUEVO: WebSocket ref
+  const socketRef = useRef(null);
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -19,7 +23,7 @@ export default function CiudadanoDashboard() {
         const userData = await me();
         setUser(userData);
 
-        // 👇 CARGAR WALLET
+        // Cargar wallet
         try {
           const walletRes = await fetch(
             `${import.meta.env.VITE_API_URL}/wallets/${userData.id}`,
@@ -40,7 +44,7 @@ export default function CiudadanoDashboard() {
           setLoadingWallet(false);
         }
 
-        // 👇 CARGAR SOLICITUDES DEL CIUDADANO
+        // Cargar solicitudes
         const response = await fetch(
           `${import.meta.env.VITE_API_URL}/api/solicitudes`,
           {
@@ -50,9 +54,14 @@ export default function CiudadanoDashboard() {
 
         if (response.ok) {
           const data = await response.json();
-          console.log('📋 Solicitudes del ciudadano:', data);
-          // ✅ CORREGIDO: Usar usuario_id en lugar de ciudadano_id
-          setSolicitudes(data.filter((s) => s.usuario_id === userData.id));
+          const misSolicitudes = data.filter((s) => s.usuario_id === userData.id);
+          setSolicitudes(misSolicitudes);
+          
+          // ✅ Calcular kg reciclados total
+          const totalKg = misSolicitudes
+            .filter((s) => s.estado === 'completada')
+            .reduce((sum, s) => sum + parseFloat(s.cantidad || 0), 0);
+          setKgReciclados(totalKg.toFixed(1));
         }
       } catch (error) {
         console.error('Error cargando datos:', error);
@@ -62,6 +71,79 @@ export default function CiudadanoDashboard() {
     };
     loadUserData();
   }, []);
+
+  // ✅ NUEVO: Conectar WebSocket para escuchar completaciones
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const wsUrl = import.meta.env.VITE_API_URL.replace('https://', 'wss://').replace('http://', 'ws://');
+    const ws = new WebSocket(`${wsUrl}/ws/${user.id}`);
+    socketRef.current = ws;
+
+    ws.onopen = () => console.log('🔌 WebSocket ciudadano conectado');
+    
+    ws.onmessage = async (event) => {
+      const data = JSON.parse(event.data);
+      console.log('📩 Mensaje recibido:', data);
+
+      if (data.type === 'solicitud_completada') {
+        console.log('✅ Solicitud completada detectada');
+        
+        // ✅ Recargar solicitudes
+        try {
+          const response = await fetch(
+            `${import.meta.env.VITE_API_URL}/api/solicitudes`,
+            {
+              headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+            }
+          );
+
+          if (response.ok) {
+            const allData = await response.json();
+            const misSolicitudes = allData.filter((s) => s.usuario_id === user.id);
+            setSolicitudes(misSolicitudes);
+
+            // ✅ Actualizar kg reciclados
+            const totalKg = misSolicitudes
+              .filter((s) => s.estado === 'completada')
+              .reduce((sum, s) => sum + parseFloat(s.cantidad || 0), 0);
+            setKgReciclados(totalKg.toFixed(1));
+          }
+        } catch (err) {
+          console.error('Error actualizando solicitudes:', err);
+        }
+
+        // ✅ Recargar wallet (puntos)
+        try {
+          const walletRes = await fetch(
+            `${import.meta.env.VITE_API_URL}/wallets/${user.id}`,
+            {
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem('token')}`,
+              },
+            }
+          );
+
+          if (walletRes.ok) {
+            const walletJson = await walletRes.json();
+            setWallet(walletJson);
+            console.log('💰 Puntos actualizados:', walletJson.puntos);
+          }
+        } catch (err) {
+          console.error('Error actualizando wallet:', err);
+        }
+      }
+    };
+
+    ws.onerror = (err) => console.error('Error WS:', err);
+    ws.onclose = () => console.log('🔌 WebSocket ciudadano desconectado');
+
+    return () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
+  }, [user]);
 
   if (loading) {
     return (
@@ -76,9 +158,8 @@ export default function CiudadanoDashboard() {
   );
   const solicitudesCompletadas = solicitudes.filter((s) => s.estado === 'completada');
 
-  // 👇 CÁLCULOS PARA LA BARRA
   const puntos = wallet?.puntos ?? 0;
-  const progreso = Math.min((puntos / 100) * 100, 100); // %
+  const progreso = Math.min((puntos / 100) * 100, 100);
   const faltan = Math.max(100 - puntos, 0);
 
   return (
@@ -86,7 +167,6 @@ export default function CiudadanoDashboard() {
       <Navbar />
 
       <div className="container mx-auto px-4 py-8">
-
         {/* Header */}
         <div className="mb-8 text-white">
           <h1 className="text-4xl font-bold mb-2">
@@ -96,9 +176,21 @@ export default function CiudadanoDashboard() {
             Bienvenido a tu panel de control de reciclaje
           </p>
 
-          {/* 👇 BARRA DE PROGRESO */}
+          {/* ✅ BARRA DE PROGRESO CON KG RECICLADOS */}
           {!loadingWallet && (
             <div className="bg-white/20 backdrop-blur-md p-6 rounded-2xl shadow-lg mt-6">
+              {/* ✅ NUEVO: Mostrar kg reciclados */}
+              <div className="flex justify-between items-center mb-4">
+                <div className="text-center">
+                  <p className="text-4xl font-bold text-white">{kgReciclados}</p>
+                  <p className="text-sm text-white/80">kg Reciclados</p>
+                </div>
+                <div className="w-px h-12 bg-white/40"></div>
+                <div className="text-center">
+                  <p className="text-4xl font-bold text-white">{puntos}</p>
+                  <p className="text-sm text-white/80">Puntos Verdes</p>
+                </div>
+              </div>
 
               <p className="text-center text-white text-lg font-medium mb-3">
                 🎯 Te faltan {faltan} puntos para tu próxima recompensa 🎁

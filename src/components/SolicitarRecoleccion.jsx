@@ -30,7 +30,7 @@ const mapOptions = {
 export default function SolicitarRecoleccion() {
   const navigate = useNavigate();
   const [userId, setUserId] = useState(null);
-  const [userData, setUserData] = useState(null); // ✅ AGREGAR
+  const [userData, setUserData] = useState(null);
   const [ubicacion, setUbicacion] = useState(null);
   const [recicladorUbicacion, setRecicladorUbicacion] = useState(null);
   const [directions, setDirections] = useState(null);
@@ -44,26 +44,77 @@ export default function SolicitarRecoleccion() {
   });
   const [loading, setLoading] = useState(false);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true); // ✅ AGREGAR
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  
+  // ✅ NUEVO: Estados para kg y puntos
+  const [kgReciclados, setKgReciclados] = useState(0);
+  const [puntosVerdes, setPuntosVerdes] = useState(0);
   
   const socketRef = useRef(null);
   const mapRef = useRef(null);
   const directionsService = useRef(null);
   const routeUpdateTimerRef = useRef(null);
 
-  // 🔹 Obtener usuario actual
+  // 🔹 Obtener usuario actual y datos iniciales
   useEffect(() => {
     const getUser = async () => {
       try {
         const user = await me();
         setUserId(user.id);
-        setUserData(user); // ✅ AGREGAR
+        setUserData(user);
+
+        // ✅ Cargar datos iniciales
+        await cargarDatosUsuario(user.id);
       } catch (error) {
         console.error('Error obteniendo usuario:', error);
       }
     };
     getUser();
   }, []);
+
+  // ✅ NUEVA FUNCIÓN: Cargar kg reciclados y puntos
+  const cargarDatosUsuario = async (usuarioId) => {
+    try {
+      // Cargar solicitudes para calcular kg
+      const solicitudesRes = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/solicitudes`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+        }
+      );
+
+      if (solicitudesRes.ok) {
+        const solicitudes = await solicitudesRes.json();
+        const misSolicitudes = solicitudes.filter((s) => s.usuario_id === usuarioId);
+        
+        // Calcular kg reciclados
+        const totalKg = misSolicitudes
+          .filter((s) => s.estado === 'completada')
+          .reduce((sum, s) => sum + parseFloat(s.cantidad || 0), 0);
+        
+        setKgReciclados(totalKg.toFixed(1));
+      }
+
+      // Cargar wallet para obtener puntos
+      const walletRes = await fetch(
+        `${import.meta.env.VITE_API_URL}/wallets/${usuarioId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+        }
+      );
+
+      if (walletRes.ok) {
+        const walletData = await walletRes.json();
+        setPuntosVerdes(walletData.puntos || 0);
+      }
+    } catch (error) {
+      console.error('Error cargando datos usuario:', error);
+    }
+  };
 
   // 🔹 Obtener ubicación
   useEffect(() => {
@@ -83,7 +134,7 @@ export default function SolicitarRecoleccion() {
     }
   }, []);
 
-  // 🔹 Conectar WebSocket
+  // 🔹 Conectar WebSocket con actualización de datos
   useEffect(() => {
     if (!userId) return;
 
@@ -92,7 +143,7 @@ export default function SolicitarRecoleccion() {
     socketRef.current = ws;
 
     ws.onopen = () => console.log('WebSocket conectado ✅');
-    ws.onmessage = (event) => {
+    ws.onmessage = async (event) => {
       const data = JSON.parse(event.data);
       console.log('Mensaje recibido:', data);
       
@@ -108,6 +159,10 @@ export default function SolicitarRecoleccion() {
         setRecicladorUbicacion(nuevaUbicacion);
       } else if (data.type === 'solicitud_completada') {
         alert('¡Recolección completada! Gracias por reciclar 🌱');
+        
+        // ✅ ACTUALIZAR DATOS EN TIEMPO REAL
+        await cargarDatosUsuario(userId);
+        
         setSolicitudActiva(null);
         setRecicladorUbicacion(null);
         setDirections(null);
@@ -454,15 +509,15 @@ export default function SolicitarRecoleccion() {
               </div>
             </div>
             
-            {/* Stats Rápidas */}
+            {/* ✅ Stats Rápidas - KG Y PUNTOS ACTUALIZADOS */}
             <div className="flex mt-6 gap-2">
               <div className="flex-1 bg-white/20 rounded-lg p-2 text-center backdrop-blur-sm">
-                <p className="text-2xl font-bold">50</p>
+                <p className="text-2xl font-bold">{puntosVerdes}</p>
                 <p className="text-[10px] uppercase tracking-wider opacity-80">Puntos</p>
               </div>
               <div className="flex-1 bg-white/20 rounded-lg p-2 text-center backdrop-blur-sm">
-                <p className="text-2xl font-bold">8kg</p>
-                <p className="text-[10px] uppercase tracking-wider opacity-80">Total</p>
+                <p className="text-2xl font-bold">{kgReciclados}</p>
+                <p className="text-[10px] uppercase tracking-wider opacity-80">kg Total</p>
               </div>
             </div>
           </div>
