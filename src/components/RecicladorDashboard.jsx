@@ -69,31 +69,40 @@ export default function RecicladorDashboard() {
         setUserId(user.id);
         setUserData(user);
 
-        // ✅ NUEVO: Cargar kg reciclados del reciclador
-        const solicitudesRes = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/solicitudes`,
-          {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem('token')}`,
-            },
-          }
-        );
-
-        if (solicitudesRes.ok) {
-          const solicitudes = await solicitudesRes.json();
-          // Sumar solo solicitudes completadas por este reciclador
-          const totalKg = solicitudes
-            .filter((s) => s.reciclador_id === user.id && s.estado === 'completada')
-            .reduce((sum, s) => sum + parseFloat(s.cantidad || 0), 0);
-          
-          setKgReciclados(totalKg.toFixed(1));
-        }
+        // ✅ Cargar kg reciclados
+        cargarKgReciclados(user.id);
       } catch (error) {
         console.error('Error user:', error);
       }
     };
     getUser();
   }, []);
+
+  // ✅ NUEVA FUNCIÓN: Cargar kg reciclados (reutilizable)
+  const cargarKgReciclados = async (recicladorId) => {
+    try {
+      const solicitudesRes = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/solicitudes`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+        }
+      );
+
+      if (solicitudesRes.ok) {
+        const solicitudes = await solicitudesRes.json();
+        const totalKg = solicitudes
+          .filter((s) => s.reciclador_id === recicladorId && s.estado === 'completada')
+          .reduce((sum, s) => sum + parseFloat(s.cantidad || 0), 0);
+        
+        setKgReciclados(totalKg.toFixed(1));
+        console.log(`♻️ Total kg reciclados: ${totalKg.toFixed(1)}`);
+      }
+    } catch (error) {
+      console.error('Error cargando kg reciclados:', error);
+    }
+  };
 
   // --- 2. WEBSOCKET ---
   useEffect(() => {
@@ -360,7 +369,11 @@ export default function RecicladorDashboard() {
         );
       }
 
-      alert('¡Excelente trabajo! +50 Puntos 🌟');
+      // ✅ ACTUALIZAR KG RECICLADOS INMEDIATAMENTE
+      const cantidadReciclada = parseFloat(solicitudActiva.cantidad || 0);
+      setKgReciclados((prev) => (parseFloat(prev) + cantidadReciclada).toFixed(1));
+
+      alert(`¡Excelente trabajo! +${cantidadReciclada} kg reciclados 🌟`);
       
       setNavigationInstructions(null);
       setRouteInfo(null);
