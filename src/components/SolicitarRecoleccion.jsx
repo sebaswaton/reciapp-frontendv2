@@ -356,9 +356,9 @@ export default function SolicitarRecoleccion() {
               center={ubicacion}
               radius={100}
               options={{
-                fillColor: '#3B82F6',
+                fillColor: '#10b981', // ✅ CAMBIO: Verde en lugar de azul
                 fillOpacity: 0.2,
-                strokeColor: '#3B82F6',
+                strokeColor: '#10b981',
                 strokeOpacity: 0.5,
                 strokeWeight: 2,
               }}
@@ -418,28 +418,28 @@ export default function SolicitarRecoleccion() {
       {/* 2. Botón "Centrar en Mí" (Flotante) */}
       <button 
         onClick={centrarEnMi}
-        className="absolute bottom-6 right-6 z-[1000] bg-white p-3 rounded-full shadow-xl hover:bg-blue-50 text-gray-700 hover:text-blue-600 transition-all transform hover:scale-110"
+        className="absolute bottom-6 right-6 z-[1000] bg-white p-3 rounded-full shadow-xl hover:bg-green-50 text-gray-700 hover:text-green-600 transition-all transform hover:scale-110"
         title="Mi Ubicación"
       >
         <Locate size={24} />
       </button>
 
-      {/* 3. Panel Lateral (Sidebar) - ESTILO RECICLADOR */}
+      {/* 3. Panel Lateral (Sidebar) - VERDE COMO RECICLADOR */}
       <div className={`absolute top-0 left-0 h-full w-full md:w-96 bg-white/95 backdrop-blur-md shadow-2xl z-[1001] transition-transform duration-300 ease-in-out transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full">
           
-          {/* Header del Sidebar */}
-          <div className="p-6 bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-md relative">
+          {/* Header del Sidebar - VERDE */}
+          <div className="p-6 bg-gradient-to-r from-green-600 to-green-500 text-white shadow-md relative">
             <button onClick={() => setSidebarOpen(false)} className="absolute top-4 right-4 md:hidden opacity-80 hover:opacity-100">
                <X size={24}/>
             </button>
             <div className="flex items-center gap-4">
-              <div className="h-14 w-14 rounded-full bg-white text-blue-600 flex items-center justify-center font-bold text-2xl shadow-inner border-2 border-blue-200">
+              <div className="h-14 w-14 rounded-full bg-white text-green-600 flex items-center justify-center font-bold text-2xl shadow-inner border-2 border-green-200">
                 {userData?.nombre ? userData.nombre[0].toUpperCase() : <User />}
               </div>
               <div>
                 <h2 className="font-bold text-xl">{userData?.nombre || 'Ciudadano'}</h2>
-                <div className="flex items-center gap-1 text-blue-100 text-sm">
+                <div className="flex items-center gap-1 text-green-100 text-sm">
                   <Leaf size={14}/>
                   <span className="font-medium">Contribuyente Activo</span>
                 </div>
@@ -463,9 +463,9 @@ export default function SolicitarRecoleccion() {
           <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
             
             {!solicitudActiva ? (
-              // ✅ FORMULARIO DE SOLICITUD
-              <div className="bg-white border-2 border-blue-500 rounded-2xl p-5 shadow-lg relative overflow-hidden">
-                <div className="absolute top-0 right-0 bg-blue-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">
+              // ✅ FORMULARIO DE SOLICITUD - VERDE
+              <div className="bg-white border-2 border-green-500 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 right-0 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">
                   📍 NUEVA SOLICITUD
                 </div>
                 
@@ -480,7 +480,7 @@ export default function SolicitarRecoleccion() {
                       Tipo de Material
                     </label>
                     <select
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
                       value={formulario.tipo_material}
                       onChange={(e) =>
                         setFormulario({
@@ -503,7 +503,7 @@ export default function SolicitarRecoleccion() {
                     </label>
                     <input
                       type="number"
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
                       value={formulario.cantidad}
                       onChange={(e) =>
                         setFormulario({
@@ -520,7 +520,7 @@ export default function SolicitarRecoleccion() {
                       Descripción (opcional)
                     </label>
                     <textarea
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all resize-none"
                       rows="3"
                       value={formulario.descripcion}
                       onChange={(e) =>
@@ -536,7 +536,7 @@ export default function SolicitarRecoleccion() {
                   <button
                     onClick={handleSolicitar}
                     disabled={loading || !formulario.cantidad}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02] flex items-center justify-center gap-2"
+                    className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-green-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02] flex items-center justify-center gap-2"
                   >
                     <MapPin size={20}/>
                     {loading ? 'Solicitando...' : 'Solicitar Recolección'}
@@ -544,9 +544,9 @@ export default function SolicitarRecoleccion() {
                 </div>
               </div>
             ) : (
-              // ✅ ESTADO DE TRACKING - ESTILO MISIÓN
-              <div className="bg-white border-2 border-blue-500 rounded-2xl p-5 shadow-lg relative overflow-hidden">
-                <div className="absolute top-0 right-0 bg-blue-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl animate-pulse">
+              // ✅ ESTADO DE TRACKING - VERDE
+              <div className="bg-white border-2 border-green-500 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 right-0 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl animate-pulse">
                   {solicitudActiva.estado === 'pendiente' ? '🔍 BUSCANDO' : '🚗 EN CAMINO'}
                 </div>
                 
