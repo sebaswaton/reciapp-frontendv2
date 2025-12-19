@@ -209,6 +209,14 @@ export default function SolicitarRecoleccion() {
   // 🔹 Crear solicitud
   const handleSolicitar = async () => {
     if (!ubicacion) return alert('Esperando tu ubicación...');
+    
+    // ✅ VALIDACIÓN: Cantidad debe ser mayor a 0
+    const cantidadNum = parseFloat(formulario.cantidad);
+    if (!cantidadNum || cantidadNum <= 0) {
+      alert('⚠️ La cantidad debe ser mayor a 0 kg');
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/solicitudes`, {
@@ -219,7 +227,7 @@ export default function SolicitarRecoleccion() {
         },
         body: JSON.stringify({
           tipo_material: formulario.tipo_material,
-          cantidad: parseFloat(formulario.cantidad),
+          cantidad: cantidadNum,
           descripcion: formulario.descripcion,
           latitud: ubicacion.lat,
           longitud: ubicacion.lng,
@@ -503,6 +511,8 @@ export default function SolicitarRecoleccion() {
                     </label>
                     <input
                       type="number"
+                      min="0.1"
+                      step="0.1"
                       className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
                       value={formulario.cantidad}
                       onChange={(e) =>
@@ -513,6 +523,9 @@ export default function SolicitarRecoleccion() {
                       }
                       placeholder="Ej: 5"
                     />
+                    {formulario.cantidad && parseFloat(formulario.cantidad) <= 0 && (
+                      <p className="text-red-500 text-xs mt-1">⚠️ La cantidad debe ser mayor a 0</p>
+                    )}
                   </div>
 
                   <div>
@@ -535,7 +548,7 @@ export default function SolicitarRecoleccion() {
 
                   <button
                     onClick={handleSolicitar}
-                    disabled={loading || !formulario.cantidad}
+                    disabled={loading || !formulario.cantidad || parseFloat(formulario.cantidad) <= 0}
                     className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-green-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02] flex items-center justify-center gap-2"
                   >
                     <MapPin size={20}/>
